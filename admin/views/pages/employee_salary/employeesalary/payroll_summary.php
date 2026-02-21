@@ -1,50 +1,46 @@
 <?php
-// payroll_summary.php
-$host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "hrm";
+global $db, $tx;
 
-// Database connection
-$db = new mysqli($host, $user, $pass, $dbname);
-if($db->connect_error){
-    die("Connection failed: " . $db->connect_error);
-}
+// Filter
+$emp_id = isset($_GET['emp_id']) ? $_GET['emp_id'] : '';
+$showReport = isset($_GET['emp_id']);
 
-// Employee filter
-$emp_id = isset($_GET['emp_id']) ? intval($_GET['emp_id']) : -1; // -1 means form not submitted
+// Employees dropdown
+$emp_result = $db->query("SELECT id, name FROM {$tx}employees ORDER BY name ASC");
 
-// Fetch employees for dropdown
-$emp_query = "SELECT id, name FROM rt_employees ORDER BY name ASC";
-$emp_result = $db->query($emp_query);
-
-// Only fetch payroll summary if form submitted
-$showReport = ($emp_id >= 0);
+// Data
 $result = null;
-
 if($showReport){
-    $filter_sql = ($emp_id > 0) ? "WHERE e.id = $emp_id" : "";
+    $filter_sql = "";
+    if($emp_id !== '' && $emp_id != '0'){
+        $filter_sql = "WHERE e.id = ".intval($emp_id);
+    }
     $query = "
         SELECT 
             e.id AS emp_id,
             e.name AS emp_name,
-            COALESCE(MAX(es.basic_salary),0) AS basic_salary,
-            COALESCE(MAX(es.hra),0) AS hra,
-            COALESCE(MAX(es.medical_allowance),0) AS medical_allowance,
-            COALESCE(MAX(es.tax_deduction),0) AS tax_deduction,
-            COALESCE(MAX(es.pf_deduction),0) AS pf_deduction,
-            COALESCE(MAX(es.gross_salary),0) AS gross_salary,
-            COALESCE(MAX(es.net_salary),0) AS net_salary
-        FROM rt_employees e
-        LEFT JOIN rt_employee_salary es ON e.id = es.emp_id
+            COALESCE(es.basic_salary,0) AS basic_salary,
+            COALESCE(es.hra,0) AS hra,
+            COALESCE(es.medical_allowance,0) AS medical_allowance,
+            COALESCE(es.tax_deduction,0) AS tax_deduction,
+            COALESCE(es.pf_deduction,0) AS pf_deduction,
+            COALESCE(es.gross_salary, COALESCE(es.basic_salary,0)+COALESCE(es.hra,0)+COALESCE(es.medical_allowance,0)) AS gross_salary,
+            COALESCE(es.net_salary, COALESCE(es.basic_salary,0)+COALESCE(es.hra,0)+COALESCE(es.medical_allowance,0)-COALESCE(es.tax_deduction,0)-COALESCE(es.pf_deduction,0)) AS net_salary
+        FROM {$tx}employees e
+        LEFT JOIN (
+            SELECT s.emp_id, s.basic_salary, s.hra, s.medical_allowance, s.tax_deduction, s.pf_deduction, s.gross_salary, s.net_salary
+            FROM {$tx}employee_salary s
+            INNER JOIN (
+                SELECT emp_id, MAX(id) AS max_id
+                FROM {$tx}employee_salary
+                GROUP BY emp_id
+            ) m ON m.max_id = s.id
+        ) es ON es.emp_id = e.id
         $filter_sql
-        GROUP BY e.id, e.name
         ORDER BY e.name ASC
     ";
     $result = $db->query($query);
 }
-
-$db->close();
 ?>
 <!DOCTYPE html>
 <html>
@@ -78,10 +74,10 @@ $db->close();
         <div class="col-md-4">
             <label for="emp_id" class="form-label">Select Employee:</label>
             <select name="emp_id" id="emp_id" class="form-select">
-                <option value="0" <?= ($emp_id === 0) ? "selected" : "" ?>>All Employees</option>
-                <?php while($emp = $emp_result->fetch_assoc()): 
-                    $selected = ($emp['id'] == $emp_id) ? "selected" : ""; ?>
-                    <option value="<?= $emp['id'] ?>" <?= $selected ?>><?= htmlspecialchars($emp['name']) ?></option>
+                <option value="0" <?= ($emp_id==='0') ? "selected" : "" ?>>All Employees</option>
+                <?php while($emp = $emp_result->fetch_object()):
+                    $selected = ($emp->id == $emp_id) ? "selected" : ""; ?>
+                    <option value="<?= $emp->id ?>" <?= $selected ?>><?= htmlspecialchars($emp->name) ?></option>
                 <?php endwhile; ?>
             </select>
         </div>
@@ -98,12 +94,14 @@ $db->close();
         <thead>
             <tr>
                 <th>Employee Name</th>
-                <th>Basic Salary</th>
+                <th>Basic</th>
                 <th>HRA</th>
                 <th>Medical</th>
+                <th>Gross Salary</th>
                 <th>Tax</th>
                 <th>PF</th>
-                <th>Gross Salary</th>
+                <th>Leave Deduct</th>
+                <th>Late Deduct</th>
                 <th>Net Salary</th>
             </tr>
         </thead>
@@ -112,36 +110,46 @@ $db->close();
             $total_basic = $total_hra = $total_medical = $total_tax = $total_pf = $total_gross = $total_net = 0;
 
             if($result->num_rows > 0):
-                while($row = $result->fetch_assoc()):
-                    $total_basic += $row['basic_salary'];
-                    $total_hra += $row['hra'];
-                    $total_medical += $row['medical_allowance'];
-                    $total_tax += $row['tax_deduction'];
-                    $total_pf += $row['pf_deduction'];
-                    $total_gross += $row['gross_salary'];
-                    $total_net += $row['net_salary'];
+                while($row = $result->fetch_object()):
+                    $leave_deduct = EmployeeSalary::compute_leave_deduct($row->emp_id, $row->basic_salary);
+                    $late_deduct = EmployeeSalary::compute_late_deduct($row->emp_id, $row->basic_salary);
+                    $total_basic += round($row->basic_salary);
+                    $total_hra += round($row->hra);
+                    $total_medical += round($row->medical_allowance);
+                    $total_gross += round($row->gross_salary);
+                    $total_tax += round($row->tax_deduction);
+                    $total_pf += round($row->pf_deduction);
+                    
+                    $total_net += round($row->net_salary);
+                    $total_leave_deduct = ($total_leave_deduct ?? 0) + intval($leave_deduct);
+                    $total_late_deduct = ($total_late_deduct ?? 0) + intval($late_deduct);
             ?>
                 <tr>
-                    <td><?= htmlspecialchars($row['emp_name']) ?></td>
-                    <td><?= number_format($row['basic_salary'],2) ?></td>
-                    <td><?= number_format($row['hra'],2) ?></td>
-                    <td><?= number_format($row['medical_allowance'],2) ?></td>
-                    <td><?= number_format($row['tax_deduction'],2) ?></td>
-                    <td><?= number_format($row['pf_deduction'],2) ?></td>
-                    <td><?= number_format($row['gross_salary'],2) ?></td>
-                    <td><?= number_format($row['net_salary'],2) ?></td>
+                    <td><?= htmlspecialchars($row->emp_name) ?></td>
+                    <td><?= number_format(round($row->basic_salary),0) ?></td>
+                    <td><?= number_format(round($row->hra),0) ?></td>
+                    <td><?= number_format(round($row->medical_allowance),0) ?></td>
+                    <td><?= number_format(round($row->gross_salary),0) ?></td>
+                    <td><?= number_format(round($row->tax_deduction),0) ?></td>
+                    <td><?= number_format(round($row->pf_deduction),0) ?></td>
+                    <td><?= number_format(intval($leave_deduct),0) ?></td>
+                    <td><?= number_format(intval($late_deduct),0) ?></td>
+                    
+                    <td><?= number_format(round($row->net_salary),0) ?></td>
                 </tr>
             <?php endwhile; ?>
             <!-- Totals Row -->
             <tr class="totals-row">
                 <td>Total</td>
-                <td><?= number_format($total_basic,2) ?></td>
-                <td><?= number_format($total_hra,2) ?></td>
-                <td><?= number_format($total_medical,2) ?></td>
-                <td><?= number_format($total_tax,2) ?></td>
-                <td><?= number_format($total_pf,2) ?></td>
-                <td><?= number_format($total_gross,2) ?></td>
-                <td><?= number_format($total_net,2) ?></td>
+                <td><?= number_format($total_basic,0) ?></td>
+                <td><?= number_format($total_hra,0) ?></td>
+                <td><?= number_format($total_medical,0) ?></td>
+                <td><?= number_format($total_tax,0) ?></td>
+                <td><?= number_format($total_pf,0) ?></td>
+                <td><?= number_format(($total_leave_deduct ?? 0),0) ?></td>
+                <td><?= number_format(($total_late_deduct ?? 0),0) ?></td>
+                <td><?= number_format($total_gross,0) ?></td>
+                <td><?= number_format($total_net,0) ?></td>
             </tr>
             <?php else: ?>
                 <tr><td colspan="8">No employee salary data found.</td></tr>

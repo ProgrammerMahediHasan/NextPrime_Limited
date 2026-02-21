@@ -64,4 +64,24 @@ class AuthApi extends Api{
     }
 
 
+    function usernameByRole($data){
+        global $db, $tx;
+        $role_id = isset($data["id"]) ? intval($data["id"]) : 0;
+        if($role_id<=0){
+            echo json_encode(["success"=>0]);
+            return;
+        }
+        $stmt = $db->prepare("SELECT name FROM {$tx}users WHERE role_id=? AND status='Active' ORDER BY id ASC LIMIT 1");
+        $stmt->bind_param("i", $role_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if($result->num_rows===1){
+            $row = $result->fetch_assoc();
+            echo json_encode(["success"=>1,"username"=>$row["name"]]);
+        }else{
+            echo json_encode(["success"=>0]);
+        }
+        $stmt->close();
+    }
+
 }

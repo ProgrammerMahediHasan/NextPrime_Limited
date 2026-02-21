@@ -1,14 +1,5 @@
 <?php
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "hrm";
-
-$db = new mysqli($host, $user, $pass, $dbname);
-if($db->connect_error){
-    die("Connection failed: " . $db->connect_error);
-}
+global $db, $tx;
 
 // Month & Year
 $month = isset($_GET['month']) ? $_GET['month'] : '';
@@ -26,23 +17,21 @@ if($showSummary){
     SELECT 
         e.id as emp_id,
         e.name as emp_name,
-        SUM(CASE WHEN LOWER(d.status)='present' THEN 1 ELSE 0 END) as total_attendance,
-        SUM(COALESCE(d.late_minutes,0)) as total_late,
-        SUM(COALESCE(d.overtime_minutes,0)) as total_overtime,
+        SUM(CASE WHEN LOWER(d.status) IN ('present','late') THEN 1 ELSE 0 END) as total_attendance,
+        SUM(CASE WHEN COALESCE(d.late_minutes,0) > 0 THEN 1 ELSE 0 END) as total_late_days,
+        SUM(CASE WHEN COALESCE(d.overtime_minutes,0) > 0 THEN 1 ELSE 0 END) as total_overtime_days,
         SUM(CASE WHEN LOWER(d.status)='absent' THEN 1 ELSE 0 END) as total_absent,
         SUM(CASE WHEN LOWER(d.status)='leave' THEN 1 ELSE 0 END) as total_leave
-    FROM rt_employees e
-    LEFT JOIN rt_daily_attendance d 
+    FROM {$tx}employees e
+    LEFT JOIN {$tx}daily_attendance d 
         ON e.id = d.emp_id 
-        AND MONTH(d.att_date) = $month 
-        AND YEAR(d.att_date) = $year
+        AND MONTH(d.att_date) = {$month} 
+        AND YEAR(d.att_date) = {$year}
     GROUP BY e.id, e.name
     ORDER BY e.name ASC";
 
     $result = $db->query($query);
 }
-
-$db->close();
 ?>
 <!DOCTYPE html>
 <html>
@@ -114,8 +103,8 @@ $db->close();
             <tr>
                 <th>Employee Name</th>
                 <th>Total Present</th>
-                <th>Total Late</th>
-                <th>Total Overtime</th>
+                <th>Total Late (Days)</th>
+                <th>Total Overtime (Days)</th>
                 <th>Total Absent</th>
                 <th>Total Leave</th>
             </tr>
@@ -126,8 +115,8 @@ $db->close();
 
             while($row = $result->fetch_assoc()):
                 $total_present += $row['total_attendance'];
-                $total_late += $row['total_late'];
-                $total_overtime += $row['total_overtime'];
+                $total_late += $row['total_late_days'];
+                $total_overtime += $row['total_overtime_days'];
                 $total_absent += $row['total_absent'];
                 $total_leave += $row['total_leave'];
 
@@ -136,8 +125,8 @@ $db->close();
             <tr>
                 <td><?= htmlspecialchars($row['emp_name']) ?></td>
                 <td><?= $row['total_attendance'] ?></td>
-                <td><?= $row['total_late'] ?></td>
-                <td><?= $row['total_overtime'] ?></td>
+                <td><?= $row['total_late_days'] ?></td>
+                <td><?= $row['total_overtime_days'] ?></td>
                 <td class="<?= $absentClass ?>"><?= $row['total_absent'] ?></td>
                 <td><?= $row['total_leave'] ?></td>
             </tr>

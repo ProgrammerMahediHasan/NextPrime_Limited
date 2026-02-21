@@ -1,7 +1,9 @@
+<?php include_once(__DIR__ . "/../configs/app_config.php"); ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
+  <base href="<?= $base_url ?>/">
 
   <!-- begin::GXON Meta Basic -->
   <meta charset="utf-8">

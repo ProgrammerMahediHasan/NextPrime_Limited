@@ -1,8 +1,35 @@
 <?php
 include_once("header.php");
 
+// Fallback: derive class/method from URI if not provided
+if (!isset($_GET["class"]) || !isset($_GET["method"])) {
+    $uri = $_SERVER['REQUEST_URI'] ?? '';
+    $pos = strpos($uri, '/admin/');
+    if ($pos !== false) {
+        $rest = substr($uri, $pos + 7); // after "/admin/"
+        $rest = strtok($rest, '?'); // strip query
+        $segs = array_values(array_filter(explode('/', $rest)));
+        if (!isset($_GET["class"]) && isset($segs[0])) $_GET["class"] = $segs[0];
+        if (!isset($_GET["method"]) && isset($segs[1])) $_GET["method"] = $segs[1];
+        if (!isset($_GET["id"]) && isset($segs[2])) $_GET["id"] = $segs[2];
+    }
+}
+
 if (isset($_GET["class"])) {
     $class = $_GET["class"] . "Controller";
+
+    // Role-based guard for sensitive modules
+    $module = strtolower($_GET["class"]);
+    $protected = ["user","role"];
+    if (in_array($module, $protected)) {
+        $role = $_SESSION["role_name"] ?? "";
+        $allowed = ["Admin","HR","HR Manager","Manager"];
+        if (!in_array($role, $allowed)) {
+            http_response_code(403);
+            echo "Access denied";
+            exit;
+        }
+    }
 
     //check if class exists
     if (class_exists($class)) {

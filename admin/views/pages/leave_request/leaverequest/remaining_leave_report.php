@@ -2,21 +2,24 @@
 // ---------------- FILTER INPUT ----------------
 $selectedYear = htmlspecialchars($_GET['year'] ?? '', ENT_QUOTES);
 $selectedEmp  = htmlspecialchars($_GET['emp_id'] ?? '', ENT_QUOTES);
+$selectedType = htmlspecialchars($_GET['leave_type_id'] ?? '', ENT_QUOTES);
 
-// Fetch All Employees
-$employees = Employee::all();
+// Fetch All Employees & Leave Types
+$employees   = Employee::all();
+$leaveTypes  = LeaveType::all();
 
-// 🔒 DEFAULT: no data
-if (!empty($selectedYear) || !empty($selectedEmp)) {
+// 🔒 DEFAULT: no data (only show when filtered)
+if (!empty($selectedYear) || !empty($selectedEmp) || !empty($selectedType)) {
     $leave_assign_all = LeaveAssign::all();
 } else {
     $leave_assign_all = [];
 }
 
 // ---------------- APPLY FILTER ----------------
-$leave_assign = array_filter($leave_assign_all, function($la) use ($selectedYear, $selectedEmp) {
+$leave_assign = array_filter($leave_assign_all, function($la) use ($selectedYear, $selectedEmp, $selectedType) {
     if ($selectedYear != '' && $la->year != $selectedYear) return false;
     if ($selectedEmp != '' && $la->emp_id != $selectedEmp) return false;
+    if ($selectedType != '' && $la->leave_type_id != $selectedType) return false;
     return true;
 });
 ?>
@@ -178,6 +181,18 @@ h2 {
             <?php endforeach; ?>
         </select>
     </div>
+    
+    <div class="filter-group">
+        <label for="leave_type_id">Leave Type</label>
+        <select id="leave_type_id" name="leave_type_id">
+            <option value="">All Leave Types</option>
+            <?php foreach($leaveTypes as $lt): ?>
+                <option value="<?= htmlspecialchars($lt->id) ?>" <?= ($selectedType == $lt->id) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($lt->name) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
 
     <div class="filter-group" style="align-self:flex-end;">
         <button type="submit">Search</button>
@@ -194,29 +209,51 @@ h2 {
             <th>Allowed</th>
             <th>Used</th>
             <th>Remaining</th>
+            <th>Overused</th>
             <th>Year</th>
         </tr>
     </thead>
 
     <tbody>
     <?php if(!empty($leave_assign)): ?>
-        <?php foreach($leave_assign as $la): 
+        <?php 
+        $total_allowed = 0;
+        $total_used = 0;
+        $total_remaining = 0;
+        $total_overused = 0;
+        foreach($leave_assign as $la): 
             $employee  = Employee::find($la->emp_id);
             $leaveType = LeaveType::find($la->leave_type_id);
-            $remaining = $la->allow_days - $la->used_days;
+            $allowed   = floatval($la->allow_days);
+            $used      = floatval($la->used_days);
+            $remaining = max(0, $allowed - $used);
+            $overused  = max(0, $used - $allowed);
+            $total_allowed   += $allowed;
+            $total_used      += $used;
+            $total_remaining += $remaining;
+            $total_overused  += $overused;
         ?>
         <tr>
             <td><?= htmlspecialchars($employee->name ?? 'Unknown') ?></td>
             <td><?= htmlspecialchars($leaveType->name ?? 'Unknown') ?></td>
-            <td><?= $la->allow_days ?></td>
-            <td><?= $la->used_days ?></td>
-            <td style="color: <?= ($remaining < 0) ? 'red' : 'black' ?>;"><?= $remaining ?></td>
+            <td><?= $allowed ?></td>
+            <td><?= $used ?></td>
+            <td style="color:#16a34a;font-weight:600;"><?= $remaining ?></td>
+            <td style="color:<?= ($overused>0?'#dc2626':'#000') ?>;font-weight:<?= ($overused>0?'600':'400') ?>;"><?= $overused ?></td>
             <td><?= $la->year ?></td>
         </tr>
         <?php endforeach; ?>
+        <tr>
+            <td colspan="2" style="text-align:right;font-weight:600;">Total</td>
+            <td style="font-weight:600;"><?= $total_allowed ?></td>
+            <td style="font-weight:600;"><?= $total_used ?></td>
+            <td style="color:#16a34a;font-weight:700;"><?= $total_remaining ?></td>
+            <td style="color:#dc2626;font-weight:700;"><?= $total_overused ?></td>
+            <td></td>
+        </tr>
     <?php else: ?>
         <tr>
-            <td colspan="6">No data found</td>
+            <td colspan="7">No data found</td>
         </tr>
     <?php endif; ?>
     </tbody>

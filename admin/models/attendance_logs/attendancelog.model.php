@@ -12,7 +12,7 @@ class AttendanceLog extends Model implements JsonSerializable {
 
     // Dropdown options
     public static $source_options = ["Manual","Biometric","Web"];
-    public static $status_options = ["Working","Weekend","Holiday"];
+    public static $status_options = ["Working-Day","Weekend","Holiday"];
 
     public function __construct(){}
 

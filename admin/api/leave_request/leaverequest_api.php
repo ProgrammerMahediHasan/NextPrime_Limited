@@ -37,7 +37,12 @@ class LeaveRequestApi {
     }
 
     function delete($data) {
+        $lr = LeaveRequest::find($data["id"]);
         LeaveRequest::delete($data["id"]);
+        if ($lr) {
+            $year = intval(date("Y", strtotime($lr->start_date)));
+            $this->updateLeaveAssignUsedDays($lr->emp_id, $lr->leave_id, $year);
+        }
         echo json_encode(["success" => "yes"]);
     }
 
@@ -55,10 +60,9 @@ class LeaveRequestApi {
 
         $leaverequest->save();
 
-        // Update leave_assign if approved
-        if($leaverequest->status == "Approved") {
-            $this->updateLeaveAssignUsedDays($leaverequest->emp_id, $leaverequest->leave_id);
-        }
+        // Recalculate used_days based on current year
+        $year = intval(date("Y", strtotime($leaverequest->start_date)));
+        $this->updateLeaveAssignUsedDays($leaverequest->emp_id, $leaverequest->leave_id, $year);
 
         echo json_encode(["success" => "yes"]);
     }
@@ -78,14 +82,13 @@ class LeaveRequestApi {
 
         $leaverequest->update();
 
-        if (isset($data["status"]) && $data["status"] === "Approved") {
-            $this->updateLeaveAssignUsedDays($data["emp_id"], $data["leave_id"]);
-        }
+        $year = intval(date("Y", strtotime($leaverequest->start_date)));
+        $this->updateLeaveAssignUsedDays($data["emp_id"], $data["leave_id"], $year);
 
         echo json_encode(["success" => "yes"]);
     }
 
-    private function updateLeaveAssignUsedDays($emp_id, $leave_id) {
+    private function updateLeaveAssignUsedDays($emp_id, $leave_id, $year) {
         global $db, $tx;
 
         $sum_result = $db->query("
@@ -94,6 +97,7 @@ class LeaveRequestApi {
             WHERE emp_id = {$emp_id} 
               AND leave_id = {$leave_id} 
               AND status='Approved'
+              AND YEAR(start_date) = {$year}
         ");
         $row = $sum_result->fetch_object();
         $total_used = $row->total_used ?? 0;
@@ -101,7 +105,7 @@ class LeaveRequestApi {
         $db->query("
             UPDATE {$tx}leave_assign
             SET used_days = {$total_used}
-            WHERE emp_id = {$emp_id} AND leave_type_id = {$leave_id}
+            WHERE emp_id = {$emp_id} AND leave_type_id = {$leave_id} AND year = {$year}
         ");
     }
 }

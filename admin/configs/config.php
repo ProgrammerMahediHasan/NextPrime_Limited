@@ -1,7 +1,7 @@
 <?php
-$folder="configs";
-foreach (glob("{$folder}/*_config.php") as $filename)
+$folder=__DIR__;
+foreach (glob($folder."/*_config.php") as $filename)
 {
-    include $filename;
+    include_once $filename;
 }
 ?>

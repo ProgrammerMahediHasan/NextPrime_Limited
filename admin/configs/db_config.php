@@ -1,10 +1,10 @@
 <?php   
    //Remote
    
-     define("SERVER","localhost");
-     define("USER","root");
-     define("DATABASE","hrm");
-     define("PASSWORD","");
+     if(!defined("SERVER")) define("SERVER","localhost");
+     if(!defined("USER")) define("USER","root");
+     if(!defined("DATABASE")) define("DATABASE","hrm");
+     if(!defined("PASSWORD")) define("PASSWORD","");
 
      
     //  define("SERVER","localhost");
@@ -13,8 +13,12 @@
     //  define("PASSWORD","1358@;;");
 
 
-    $db=new mysqli(SERVER,USER,PASSWORD,DATABASE);
-    $tx="rt_";
+    if(!isset($db) || !($db instanceof mysqli)){
+        $db=new mysqli(SERVER,USER,PASSWORD,DATABASE);
+    }
+    if(!isset($tx) || !$tx){
+        $tx="rt_";
+    }
   
 
 ?>

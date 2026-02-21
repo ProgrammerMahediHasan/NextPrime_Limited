@@ -152,12 +152,14 @@ class Employee extends Model implements JsonSerializable
         LIMIT $top, $perpage
     ");
 
-    // ======= Table CSS & Card Design =======
     $html = "
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
         .dept-card { max-width: 1200px; margin: 30px auto; background: #fff; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.08); font-family: 'Poppins', sans-serif; overflow: hidden; border: 1px solid #e2e8f0; }
         .dept-card-body { padding: 20px 25px; overflow-x: auto; }
+        .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+        .toolbar select { padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; min-width:200px; }
+        .toolbar .add-btn { margin-left:auto; }
         .dept-table { width: 100%; border-collapse: collapse; }
         .dept-table th, .dept-table td { padding: 12px 15px; text-align: center; font-size: 14px; border: 1px solid #e2e8f0; word-wrap: break-word; }
         .dept-table th { background-color: #1f3d79ff; color: #ffffff; font-weight: 600; }
@@ -166,22 +168,32 @@ class Employee extends Model implements JsonSerializable
         .btn-group button { padding: 6px 12px !important; font-size: 14px !important; border-radius: 5px; border: 2px solid #000; outline: none; cursor: pointer; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
         .btn-primary { background: #3b82f6; }
         .btn-danger { background: #ef4444; }
-        .photo-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; }
-        .add-btn { display: inline-block; margin-bottom: 15px; padding: 8px 16px; background: #10b981; color: #fff; font-weight: 600; border-radius: 6px; text-decoration: none; }
+        .photo-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; }
+        .avatar-fallback { width:40px; height:40px; border-radius:50%; background:#e5e7eb; color:#111827; display:flex; align-items:center; justify-content:center; font-weight:700; border:2px solid #ccc; margin:0 auto; }
+        .add-btn { display: inline-block; padding: 8px 16px; background: #10b981; color: #fff; font-weight: 600; border-radius: 6px; text-decoration: none; }
         .pagination { display: flex; justify-content: center; gap: 6px; margin-top: 15px; }
         .pagination a { padding: 6px 12px; border-radius: 5px; border: 1px solid #1f3d79ff; text-decoration: none; color: #1f3d79ff; font-weight: 500; }
         .pagination a.active { background: #1f3d79ff; color: #fff; }
         .pagination a:hover { background: #3b82f6; color: #fff; }
+        .badge { padding:6px 10px; border-radius:16px; font-weight:600; display:inline-block; }
+        .badge-active { background:#d1fae5; color:#065f46; border:1px solid #10b981; }
+        .badge-inactive { background:#fee2e2; color:#7f1d1d; border:1px solid #ef4444; }
     </style>
     ";
 
-    // ======= Card & Table Start =======
     $html .= "<div class='dept-card'>
                 <div class='dept-card-body'>
-                    <a href='{$base_url}/employee/create' class='add-btn'>+ Add Employee</a>
+                    <div class='toolbar'>
+                        <select id='statusFilter'>
+                            <option value=''>All Status</option>
+                            <option value='Active'>Active</option>
+                            <option value='Inactive'>Inactive</option>
+                        </select>
+                        <a href='{$base_url}/employee/create' class='add-btn'>+ Add Employee</a>
+                    </div>
                     <table class='dept-table'>
-                        <tr>
-                            <th>ID</th>
+                        <thead><tr>
+                            <th>SL No</th>
                             <th>Name</th>
                             <th>Department</th>
                             <th>Designation</th>
@@ -192,25 +204,27 @@ class Employee extends Model implements JsonSerializable
                             <th>Photo</th>
                             <th>Joining Date</th>";
     if($action) $html .= "<th>Action</th>";
-    $html .= "</tr>";
+    $html .= "</tr></thead><tbody>";
 
-    // ======= Table Rows =======
+    $sl = $top + 1;
     while($employee = $result->fetch_object()) {
         $photo = $employee->photo && file_exists("uploads/".$employee->photo) 
                   ? "<img src='{$base_url}/uploads/{$employee->photo}' class='photo-img' />" 
-                  : "-";
+                  : "<div class='avatar-fallback'>".strtoupper(substr($employee->name,0,1))."</div>";
+        $statusBadge = 
+        $join = $employee->joining_date ? date('Y-m-d', strtotime($employee->joining_date)) : '';
 
         $html .= "<tr>
-                    <td>$employee->id</td>
-                    <td>$employee->name</td>
-                    <td>$employee->dept_name</td>
-                    <td>$employee->desig_name</td>
-                    <td>$employee->email</td>
-                    <td>$employee->phone</td>
-                    <td>$employee->status</td>
-                    <td>$employee->gender</td>
-                    <td>$photo</td>
-                    <td>$employee->joining_date</td>";
+                    <td class='col-id'>$sl</td>
+                    <td class='col-name'>$employee->name</td>
+                    <td class='col-dept'>$employee->dept_name</td>
+                    <td class='col-desig'>$employee->desig_name</td>
+                    <td class='col-email'><a href='mailto:$employee->email'>$employee->email</a></td>
+                    <td class='col-phone'><a href='tel:$employee->phone'>$employee->phone</a></td>
+                    <td class='col-status'>$employee->status $statusBadge</td>
+                    <td class='col-gender'>$employee->gender</td>
+                    <td class='col-photo'>$photo</td>
+                    <td class='col-join'>$join</td>";
 
         if($action){
             $html .= "<td style='white-space: nowrap;'>
@@ -222,9 +236,24 @@ class Employee extends Model implements JsonSerializable
         }
 
         $html .= "</tr>";
+        $sl++;
     }
 
-    $html .= "</table>";
+    $html .= "</tbody></table>
+    <script>
+    (function(){
+        var st = document.getElementById('statusFilter');
+        var rows = document.querySelectorAll('.dept-table tbody tr');
+        function apply(){
+            var sv = st && st.value ? st.value : '';
+            rows.forEach(function(r){
+                var status = r.querySelector('.col-status').textContent.indexOf('Active')!==-1 ? 'Active' : 'Inactive';
+                r.style.display = (!sv || status===sv) ? '' : 'none';
+            });
+        }
+        if(st) st.addEventListener('change', apply);
+    })();
+    </script>";
 
     // ======= Pagination =======
     $html .= "<div class='pagination'>" . self::pagination($page, $total_pages) . "</div>";
@@ -238,10 +267,16 @@ class Employee extends Model implements JsonSerializable
     static function pagination($current_page, $total_pages)
     {
         $html = "<ul style='list-style:none; display:flex; justify-content:center; gap:5px; padding:0;'>";
+        $currentPath = isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '';
+        $params = $_GET;
+        unset($params['page']);
+        $baseQuery = http_build_query($params);
+        $linkBase = $currentPath . (strlen($baseQuery) ? ('?' . $baseQuery . '&') : '?');
+
         $prev = $current_page - 1;
         $html .= "<li>";
         if($current_page > 1){
-            $html .= "<a href='?page=$prev' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>Prev</a>";
+            $html .= "<a href='{$linkBase}page=$prev' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>Prev</a>";
         } else {
             $html .= "<a href='?page=1' style='padding:6px 12px; border:1px solid #ccc; color:#ccc; text-decoration:none;'>Prev</a>";
         }
@@ -251,14 +286,14 @@ class Employee extends Model implements JsonSerializable
             if ($i == $current_page) {
                 $html .= "<li><span style='padding:6px 12px; border:1px solid #1f3d79; background:#1f3d79; color:#fff;'>{$i}</span></li>";
             } else {
-                $html .= "<li><a href='?page=$i' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>{$i}</a></li>";
+                $html .= "<li><a href='{$linkBase}page=$i' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>{$i}</a></li>";
             }
         }
 
         $next = $current_page + 1;
         $html .= "<li>";
         if($current_page < $total_pages){
-            $html .= "<a href='?page=$next' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>Next</a>";
+            $html .= "<a href='{$linkBase}page=$next' style='padding:6px 12px; border:1px solid #1f3d79; color:#1f3d79; text-decoration:none;'>Next</a>";
         } else {
             $html .= "<a href='?page=$total_pages' style='padding:6px 12px; border:1px solid #ccc; color:#ccc; text-decoration:none;'>Next</a>";
         }

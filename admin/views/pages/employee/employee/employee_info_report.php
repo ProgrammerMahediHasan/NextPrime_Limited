@@ -6,28 +6,58 @@ global $db, $tx;
 
 // Fetch all employees for dropdown
 $allEmployees = $db->query("SELECT id, name FROM {$tx}employees ORDER BY id ASC");
+$allDepartments = $db->query("SELECT id, name FROM {$tx}department ORDER BY name ASC");
+$allDesignations = $db->query("SELECT id, name FROM {$tx}designations ORDER BY name ASC");
 
 // Handle filter by employee
 $emp_id = $_GET['emp_id'] ?? '';
+$dept_id = $_GET['dept_id'] ?? '';
+$desig_id = $_GET['desig_id'] ?? '';
+$status = $_GET['status'] ?? '';
+$q = $_GET['q'] ?? '';
 
 // Determine if report should be shown
 $showReport = isset($_GET['emp_id']); // Only show after clicking View Report
 
 // Build SQL based on filter
 $filter_sql = '';
-if($emp_id !== '' && $emp_id != '0'){ // Specific employee selected
-    $emp_id = (int)$emp_id;
-    $filter_sql = "WHERE e.id = $emp_id";
+if($showReport){
+    $conds = [];
+    if($emp_id !== '' && $emp_id != '0'){ $conds[] = "e.id = ".intval($emp_id); }
+    if($dept_id !== '' && $dept_id != '0'){ $conds[] = "e.dept_id = ".intval($dept_id); }
+    if($desig_id !== '' && $desig_id != '0'){ $conds[] = "e.desig_id = ".intval($desig_id); }
+    if($status !== ''){ $conds[] = "e.status = '".$db->real_escape_string($status)."'"; }
+    if($q !== ''){ $qs = $db->real_escape_string($q); $conds[] = "(e.name LIKE '%$qs%' OR e.email LIKE '%$qs%' OR e.phone LIKE '%$qs%')"; }
+    if(count($conds)>0){ $filter_sql = "WHERE ".implode(" AND ", $conds); }
 }
 
 // Fetch employee(s) info only if form submitted
 $employees = null;
 if($showReport){
     $employees = $db->query("
-        SELECT e.id, e.name, d.name AS department, ds.name AS designation, e.gender, e.email, e.phone, e.basic_salary, e.status, e.joining_date
+        SELECT 
+            e.id, 
+            e.name, 
+            d.name AS department, 
+            ds.name AS designation, 
+            e.gender, 
+            e.email, 
+            e.phone, 
+            COALESCE(es.basic_salary, 0) AS basic_salary, 
+            e.status, 
+            e.joining_date
         FROM {$tx}employees e
         LEFT JOIN {$tx}department d ON e.dept_id = d.id
         LEFT JOIN {$tx}designations ds ON e.desig_id = ds.id
+        LEFT JOIN (
+            SELECT s.emp_id, s.basic_salary
+            FROM {$tx}employee_salary s
+            INNER JOIN (
+                SELECT emp_id, MAX(id) AS max_id
+                FROM {$tx}employee_salary
+                GROUP BY emp_id
+            ) m ON m.max_id = s.id
+        ) es ON es.emp_id = e.id
         $filter_sql
         ORDER BY e.id ASC
     ");
@@ -55,16 +85,50 @@ $columns = [
 <!-- Professional Filter Form -->
 <div class="mb-4">
     <form method="GET" class="row g-3 align-items-end">
-        <div class="col-md-4">
-            <label for="emp_id" class="form-label fw-bold">Select Employee:</label>
+        <div class="col-md-3">
+            <label for="emp_id" class="form-label fw-bold">Employee</label>
             <select name="emp_id" id="emp_id" class="form-select">
-                <option value="0">All Employees</option>
+                <option value="0" <?= ($emp_id==='0' || $emp_id==='') ? 'selected' : '' ?>>All Employees</option>
                 <?php while($row = $allEmployees->fetch_assoc()): ?>
                     <option value="<?= $row['id'] ?>" <?= ($emp_id == $row['id']) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($row['name']) ?>
                     </option>
                 <?php endwhile; ?>
             </select>
+        </div>
+        <div class="col-md-3">
+            <label for="dept_id" class="form-label fw-bold">Department</label>
+            <select name="dept_id" id="dept_id" class="form-select">
+                <option value="0" <?= ($dept_id==='0' || $dept_id==='') ? 'selected' : '' ?>>All Departments</option>
+                <?php while($d = $allDepartments->fetch_assoc()): ?>
+                    <option value="<?= $d['id'] ?>" <?= ($dept_id == $d['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($d['name']) ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="desig_id" class="form-label fw-bold">Designation</label>
+            <select name="desig_id" id="desig_id" class="form-select">
+                <option value="0" <?= ($desig_id==='0' || $desig_id==='') ? 'selected' : '' ?>>All Designations</option>
+                <?php while($ds = $allDesignations->fetch_assoc()): ?>
+                    <option value="<?= $ds['id'] ?>" <?= ($desig_id == $ds['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($ds['name']) ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="status" class="form-label fw-bold">Status</label>
+            <select name="status" id="status" class="form-select">
+                <option value="" <?= ($status==='') ? 'selected' : '' ?>>All Status</option>
+                <option value="Active" <?= ($status==='Active') ? 'selected' : '' ?>>Active</option>
+                <option value="Inactive" <?= ($status==='Inactive') ? 'selected' : '' ?>>Inactive</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="q" class="form-label fw-bold">Search</label>
+            <input type="text" name="q" id="q" value="<?= htmlspecialchars($q) ?>" class="form-control" placeholder="Search by name, email, phone">
         </div>
         <div class="col-md-2">
             <button type="submit" class="btn btn-primary w-100" style="font-size:0.9rem;">View Report</button>
@@ -97,10 +161,10 @@ $columns = [
                                     <td style="padding:10px;">
                                         <?php
                                         if ($key == 'basic_salary') {
-                                            echo '$'.number_format($row[$key],2);
+                                            echo '৳'.number_format($row[$key],2);
                                         } elseif ($key == 'status') {
                                             $status_class = strtolower($row[$key]) === 'active' ? 'bg-success' : 'bg-danger';
-                                            echo "<span class='badge {$status_class} text-white' style='font-size:0.78rem;'>"
+                                            echo "<span class='badge {$status_class} text-white' style='font-size:0.78rem; padding:6px 10px;'>"
                                                  . ucfirst($row[$key]) . "</span>";
                                         } elseif ($key == 'joining_date') {
                                             echo date("d M Y", strtotime($row[$key]));

@@ -119,10 +119,28 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     global $db, $tx, $base_url;
 
     // -------- COUNT --------
-    $count_result = $db->query("SELECT COUNT(*) total FROM {$tx}leave_assign $criteria");
+    $count_result = $db->query("
+        SELECT COUNT(*) total 
+        FROM {$tx}leave_assign la
+        LEFT JOIN {$tx}employees e ON la.emp_id = e.id
+        LEFT JOIN {$tx}leave_types lt ON la.leave_type_id = lt.id
+        $criteria
+    ");
     list($total_rows) = $count_result->fetch_row();
     $total_pages = ceil($total_rows / $perpage);
     $top = ($page - 1) * $perpage;
+
+    // -------- ORDER BY (sorting) --------
+    $sort = isset($_GET["sort"]) ? strtolower($_GET["sort"]) : "emp";
+    $dir  = isset($_GET["dir"]) ? strtoupper($_GET["dir"]) : "ASC";
+    $dir  = ($dir === "DESC") ? "DESC" : "ASC";
+    if($sort === "type"){
+        $orderBy = "ORDER BY lt.name {$dir}";
+    } elseif($sort === "remaining"){
+        $orderBy = "ORDER BY (la.allow_days - la.used_days) {$dir}";
+    } else {
+        $orderBy = "ORDER BY e.name {$dir}";
+    }
 
     // -------- DATA --------
     $result = $db->query("
@@ -132,6 +150,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
         LEFT JOIN {$tx}employees e ON la.emp_id = e.id
         LEFT JOIN {$tx}leave_types lt ON la.leave_type_id = lt.id
         $criteria
+        $orderBy
         LIMIT $top, $perpage
     ");
 
@@ -216,7 +235,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     }
     </style>";
 
-    $colspan = $action ? 7 : 6;
+    $colspan = $action ? 8 : 7;
     $html .= "<tr>
         <th colspan='{$colspan}' class='text-center'>
             " . Html::link([
@@ -237,6 +256,8 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
             <th>Leave Name</th>
             <th>Allow Days</th>
             <th>Used Days</th>
+            <th>Remaining</th>
+            <th>Over Leave</th>
             <th>Year</th>";
     if($action) $html .= "<th>Action</th>";
     $html .= "</tr>
@@ -260,11 +281,16 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
             </td>";
         }
 
+        $remaining = max(0, floatval($la->allow_days) - floatval($la->used_days));
+        $overused  = max(0, floatval($la->used_days) - floatval($la->allow_days));
+        $remainingStyle = "color:#16a34a;font-weight:600;";
         $html .= "<tr>
             <td>{$la->emp_name}</td>
             <td>{$la->leave_type_name}</td>
             <td>{$la->allow_days}</td>
             <td>{$la->used_days}</td>
+            <td style=\"$remainingStyle\">{$remaining}</td>
+            <td style=\"".($overused>0?"color:#dc2626;font-weight:600;":"")."\">{$overused}</td>
             <td>{$la->year}</td>
             $action_buttons
         </tr>";
@@ -354,6 +380,9 @@ static function html_row_details($id){
     $html .= "<tr><th>Leave Type ID</th><td>{$leaveassign->leave_type_id}</td></tr>";
     $html .= "<tr><th>Allowed Days</th><td>{$leaveassign->allow_days}</td></tr>";
     $html .= "<tr><th>Used Days</th><td>{$leaveassign->used_days}</td></tr>";
+    $remaining = floatval($leaveassign->allow_days) - floatval($leaveassign->used_days);
+    $remStyle = ($remaining < 0) ? "style=\"color:red;font-weight:600;\"" : "";
+    $html .= "<tr><th>Remaining</th><td $remStyle>{$remaining}</td></tr>";
     $html .= "<tr><th>Year</th><td>{$leaveassign->year}</td></tr>";
     $html .= "</table>";
 

@@ -14281,14 +14281,16 @@ strong {
   content: "\f155";
   font-family: uicons-regular-straight;
   position: absolute;
-  right: 12px;
+  right: 14px;
   top: 50%;
   transform: translateY(-50%);
-  height: 15px;
-  width: 15px;
+  height: 16px;
+  width: 16px;
   display: flex;
   align-items: center;
   color: var(--bs-body-color);
+  font-size: 14px;
+  opacity: 0.85;
   transition: 0.2s all linear;
 }
 .app-navbar .menu-arrow > .menu-link.open::after {
@@ -14300,6 +14302,9 @@ strong {
 }
 .app-navbar .menu-inner .menu-item > .menu-link {
   padding: 7px 14px;
+}
+.app-navbar .menu-inner .menu-item > .menu-link {
+  padding-right: 36px;
 }
 .app-navbar .menu-inner .menu-item > .menu-link::after {
   color: var(--bs-body-color);
@@ -14322,6 +14327,9 @@ strong {
   padding: 10px 15px;
   color: var(--bs-heading-color);
   transition: 0.2s all linear;
+}
+.app-navbar .menu-item .menu-link {
+  padding-right: 38px;
 }
 .app-navbar .menu-item .menu-link > i {
   display: inline-flex;

@@ -5,7 +5,7 @@
 
 <head>
 
-  <base >
+  <base href="<?= $base_url ?>/">
 
   <!-- begin::GXON Meta Basic -->
   <meta charset="utf-8">
@@ -36,7 +36,7 @@
   <!-- end::GXON Meta Twitter -->
 
   <!-- begin::GXON Website Page Title -->
-  <title>Forgot Password | NextPrime HRMS Software Management System</title>
+  <title>Forgot Password | NextPrime Limited Software Management System</title>
   <!-- end::GXON Website Page Title -->
 
   <!-- begin::GXON Mobile Specific -->
@@ -102,23 +102,23 @@
         <div class="col-lg-6 align-self-center">
           <div class="p-3 p-sm-5 maxw-450px m-auto">
             <div class="mb-4 text-center">
-              <a href="index.html" aria-label="NextPrime logo">
-                <img class="visible-light" width="50" src="assets\images\HRMS_Icon.png" alt="NextPrime logo">
-                <img class="visible-dark" width="50" src="assets\images\HRMS_Icon.png" alt="NextPrime logo">
+              <a href="<?= $base_url ?>/" aria-label="NextPrime logo">
+                <img class="visible-light" width="50" src="assets/images/HRMS_Icon.png" alt="NextPrime logo">
+                <img class="visible-dark" width="50" src="assets/images/HRMS_Icon.png" alt="NextPrime logo">
               </a>
             </div>
             <div class="text-center mb-5">
               <h5 class="mb-1">Welcome to NextPrime</h5>
               <p>Enter your email to reset your password.</p>
             </div>
-            <form action="authentication/new-password-cover.html">
+            <form action="<?= $base_url ?>/new_pass.php">
               <div class="mb-4">
                 <label class="form-label" for="resetEmail">Email address</label>
                 <input type="email" class="form-control" id="resetEmail" placeholder="info@example.com">
               </div>
               <div class="clearfix">
                 <button type="submit" value="Submit" class="btn btn-primary waves-effect waves-light w-100 mb-3">Forgot Password</button>
-                <a href="http://../authentication/login-cover.html" class="btn btn-light waves-effect waves-light w-100"> Cancel </a>
+                <a href="<?= $base_url ?>/index.php" class="btn btn-light waves-effect waves-light w-100"> Cancel </a>
               </div>
             </form>
           </div>

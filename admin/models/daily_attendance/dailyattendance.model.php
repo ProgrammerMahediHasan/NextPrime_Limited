@@ -292,6 +292,9 @@ $out_time = ($row->out_time && $row->out_time != "00:00:00")
                 : "00:00:00";
 
 
+        $status_lc = strtolower($row->status ?? '');
+        $display_status = ($status_lc === 'late') ? 'Present' : (($status_lc === 'absent') ? 'Absent' : ($row->status ?? ''));
+
         $html .= "<tr>
                 <td>{$row->employee_name}</td>
                 <td>{$att_date}</td>
@@ -299,7 +302,7 @@ $out_time = ($row->out_time && $row->out_time != "00:00:00")
                 <td>{$in_time}</td>
                 <td>{$out_time}</td>
                 <td>{$row->total_work_minutes}</td>
-                <td>{$row->status}</td>
+                <td>{$display_status}</td>
                 <td>{$row->late_minutes}</td>
                 <td>{$row->overtime_minutes}</td>";
 
@@ -323,24 +326,46 @@ $out_time = ($row->out_time && $row->out_time != "00:00:00")
 
     // Pagination
     if ($total_pages > 1) {
+        $currentPath = isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '';
+        $params = $_GET;
+        unset($params['page']);
+        $baseQuery = http_build_query($params);
+        $linkBase = $currentPath . (strlen($baseQuery) ? ('?' . $baseQuery . '&') : '?');
+
+        $startIndex = $top + 1;
+        $endIndex   = min($top + $perpage, $total_records);
+
         $html .= "<div class='pagination'>";
+        $html .= "<span class='page-info'>Showing {$startIndex}-{$endIndex} of {$total_records}</span>";
+
+        // First
+        $html .= ($page > 1)
+            ? "<a class='first' href='{$linkBase}page=1'>« First</a>"
+            : "<a class='first disabled'>« First</a>";
 
         // Prev
-        $html .= ($page > 1) 
-            ? "<a href='?page=".($page - 1)."'>« Prev</a>"
-            : "<a class='disabled'>« Prev</a>";
+        $html .= ($page > 1)
+            ? "<a class='prev' href='{$linkBase}page=".($page - 1)."'>‹ Prev</a>"
+            : "<a class='prev disabled'>‹ Prev</a>";
 
-        // Number Links
-        for ($i = 1; $i <= $total_pages; $i++) {
+        // Windowed number links
+        $startPage = max(1, $page - 2);
+        $endPage   = min($total_pages, $page + 2);
+        for ($i = $startPage; $i <= $endPage; $i++) {
             $html .= ($i == $page)
                 ? "<a class='active'>{$i}</a>"
-                : "<a href='?page={$i}'>{$i}</a>";
+                : "<a href='{$linkBase}page={$i}'>{$i}</a>";
         }
 
         // Next
         $html .= ($page < $total_pages)
-            ? "<a href='?page=".($page + 1)."'>Next »</a>"
-            : "<a class='disabled'>Next »</a>";
+            ? "<a class='next' href='{$linkBase}page=".($page + 1)."'>Next ›</a>"
+            : "<a class='next disabled'>Next ›</a>";
+
+        // Last
+        $html .= ($page < $total_pages)
+            ? "<a class='last' href='{$linkBase}page={$total_pages}'>Last »</a>"
+            : "<a class='last disabled'>Last »</a>";
 
         $html .= "</div>";
     }

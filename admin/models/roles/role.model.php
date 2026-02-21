@@ -178,7 +178,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     </style>";
 
     // Add New Role Button
-    $colspan = $action ? 5 : 4;
+    $colspan = $action ? 6 : 5;
     $html .= "<tr>
                 <th colspan='{$colspan}' class='text-center'>" . Html::link([
                     "class" => "btn btn-success",
@@ -192,7 +192,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
 
     // Table Head
     $html .= "<thead><tr>
-                
+                <th>SL No</th>
                 <th>Name</th>
                 <th>Created Time</th>
                 <th>Updated Time</th>";
@@ -200,6 +200,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     $html .= "</tr></thead><tbody>";
 
     // Table Rows
+    $sl = $top + 1;
     while ($role = $result->fetch_object()) {
         $action_buttons = "";
         if ($action) {
@@ -213,12 +214,13 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
         }
 
         $html .= "<tr>
-                    
+                    <td>$sl</td>
                     <td>$role->name</td>
                     <td>$role->created_at</td>
                     <td>$role->updated_at</td>
                     $action_buttons
                   </tr>";
+        $sl++;
     }
 
     $html .= "</tbody></table></div>";

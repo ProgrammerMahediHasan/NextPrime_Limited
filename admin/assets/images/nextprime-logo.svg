@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64" role="img" aria-label="NextPrime Limited">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#316AFF"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#6B46C1"/>
+      <stop offset="1" stop-color="#5A67D8"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="64" fill="none"/>
+  <g transform="translate(8,8)">
+    <g>
+      <rect x="0" y="0" rx="12" ry="12" width="48" height="48" fill="url(#g1)"/>
+      <path d="M12 36 L12 12 L20 12 L32 28 L32 12 L36 12 L36 36 L28 36 L16 20 L16 36 Z" fill="#ffffff" opacity="0.96"/>
+      <circle cx="38" cy="10" r="3" fill="url(#g2)" opacity="0.9"/>
+    </g>
+    <g transform="translate(64,6)" fill="#0F172A">
+      <text x="0" y="18" font-family="Poppins, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="0.5">NextPrime Limited</text>
+      <text x="0" y="36" font-family="Poppins, Arial, sans-serif" font-size="12" font-weight="500" fill="#475569">HRMS & Payroll Software</text>
+    </g>
+  </g>
+</svg>

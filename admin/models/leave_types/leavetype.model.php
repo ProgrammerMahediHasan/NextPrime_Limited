@@ -109,12 +109,17 @@ class LeaveType extends Model implements JsonSerializable{
 
     // ------------- HTML Helpers ---------------- //
 
-    static function html_select($name="cmbLeaveType"){
+    static function html_select($name="cmbLeaveType", $class="form-select", $placeholder=null, $selected=null){
         global $db,$tx;
-        $html = "<select id='$name' name='$name'> ";
-        $result = $db->query("SELECT id,name FROM {$tx}leave_types");
+        $html = "<select id='$name' name='$name' class='$class'> ";
+        if ($placeholder !== null) {
+            $sel = ($selected===null || $selected==='') ? "selected" : "";
+            $html .= "<option value='' $sel>$placeholder</option>";
+        }
+        $result = $db->query("SELECT id,name FROM {$tx}leave_types ORDER BY name ASC");
         while($leavetype = $result->fetch_object()){
-            $html .= "<option value ='$leavetype->id'>$leavetype->name</option>";
+            $isSel = ($selected!==null && strval($selected)==strval($leavetype->id)) ? "selected" : "";
+            $html .= "<option value ='$leavetype->id' $isSel>$leavetype->name</option>";
         }
         $html .= "</select>";
         return $html;
@@ -199,8 +204,8 @@ class LeaveType extends Model implements JsonSerializable{
         $html .= "</tr></thead><tbody>";
 
         while($lt = $result->fetch_object()){
-            $deduct = ($lt->deduct_apply == 1) ? "<span style='color:red;font-weight:bold;'>Unpaid</span>" 
-                                               : "<span style='color:green;font-weight:bold;'>Paid</span>";
+            $deduct_label = ($lt->deduct_apply == 1) ? "Salary" : (($lt->deduct_apply == -1) ? "None" : "Leave Balance");
+            $deduct = "<span style='font-weight:bold;".(($lt->deduct_apply==1)?"color:#dc2626;":"color:#16a34a;")."'>$deduct_label</span>";
             $buttons = "";
             if($action){
                 $buttons = "<td style='white-space:nowrap;'>

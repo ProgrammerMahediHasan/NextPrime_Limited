@@ -1,438 +1,190 @@
 <?php
-echo '<h1 class="text-center fw-bold my-4" style="color:#0d6efd;">Employee Payslip</h1>';
-
-// $mysqli = new mysqli("localhost", "mahedi", "1358@;;", "wdfp66_mahedi");
-// if ($mysqli->connect_error) {
-//     die("Connection failed: " . $mysqli->connect_error);
-// }
-global $db;
-$mysqli = $db ;
-
-$data = null;
-$employee_id  = $_GET['employee_id'] ?? '';
+global $db, $tx;
+if (!isset($tx) || !$tx) { $tx = "rt_"; }
+$enginePath = dirname(__DIR__, 4) . "/models/payroll/payrollengine.model.php";
+if (file_exists($enginePath)) { require_once($enginePath); }
+$employee_id  = isset($_GET['employee_id']) ? intval($_GET['employee_id']) : 0;
 $salary_month = $_GET['salary_month'] ?? '';
-
-if ($employee_id && $salary_month) {
-
-    $stmt = $mysqli->prepare("
-        SELECT
-            es.emp_id,
-            es.basic_salary,
-            es.hra,
-            es.medical_allowance,
-            es.tax_deduction,
-            es.pf_deduction,
-            es.gross_salary,
-            es.net_salary,
-
-            e.id   AS employee_id,
-            e.name AS employee_name,
-            e.email,
-            e.phone,
-
-            d.name   AS department_name,
-            des.name AS designation_name,
-
-            ? AS salary_month,
-            CURDATE() AS generated_at,
-
-            COALESCE(SUM(
-                CASE 
-                    WHEN la.used_days > lt.total_days 
-                    THEN ((la.used_days - lt.total_days) / 30) * es.basic_salary
-                    ELSE 0
-                END
-            ),0) AS leave_deduct
-
-        FROM rt_employee_salary es
-        JOIN rt_employees e ON es.emp_id = e.id
-        LEFT JOIN rt_department d ON e.dept_id = d.id
-        LEFT JOIN rt_designations des ON e.desig_id = des.id
-        LEFT JOIN rt_leave_assign la ON la.emp_id = es.emp_id
-        LEFT JOIN rt_leave_types lt ON lt.id = la.leave_type_id
-
-        WHERE es.emp_id = ?
-
-        GROUP BY es.id
-        ORDER BY es.id DESC
-        LIMIT 1
-    ");
-
-    $stmt->bind_param("si", $salary_month, $employee_id);
-    $stmt->execute();
-    $data = $stmt->get_result()->fetch_assoc();
+$calc = null;
+$emp  = null;
+if ($employee_id > 0 && $salary_month) {
+    $calc = PayrollEngine::calculateMonthlySalary($employee_id, $salary_month);
+    if ($calc) {
+        $emp = $db->query("
+            SELECT e.id, e.name, e.email, e.phone, d.name AS department_name, des.name AS designation_name
+            FROM {$tx}employees e
+            LEFT JOIN {$tx}department d ON e.dept_id = d.id
+            LEFT JOIN {$tx}designations des ON e.desig_id = des.id
+            WHERE e.id = {$employee_id}
+        ")->fetch_object();
+    }
 }
 ?>
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
-    <title>Payslip</title>
+    <title>NextPrime Payslip</title>
     <style>
-    body {
-        font-family: 'Segoe UI', Tahoma, sans-serif;
-        background: #f4f6f8;
-        margin: 0;
-        padding: 0;
-        color: #374151;
-    }
-
-    /* ================= Professional Filter Form ================= */
-    .filter-form {
-        width: 600px;
-        margin: 50px auto;
-        background: #fff;
-        padding: 30px 35px;
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-        display: flex;
-        gap: 20px;
-        flex-wrap: wrap;
-    }
-
-    .filter-form .form-group {
-        flex: 1 1 100%;
-        display: flex;
-        flex-direction: column;
-    }
-
-    label {
-        font-weight: 500;
-        font-size: 14px;
-        margin-bottom: 8px;
-        color: #4b5563;
-    }
-
-    select,
-    input {
-        padding: 12px 15px;
-        border-radius: 8px;
-        border: 1px solid #d1d5db;
-        font-size: 14px;
-        color: #1f2937;
-        outline: none;
-        transition: 0.3s;
-    }
-
-    select:focus,
-    input:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 8px rgba(37, 99, 235, 0.2);
-    }
-
-    .btn-view {
-        background: #2563eb;
-        border: none;
-        color: #fff;
-        padding: 12px 25px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 14px;
-        transition: 0.3s;
-        margin-top: 10px;
-    }
-
-    .btn-view:hover {
-        background: #1d4ed8;
-    }
-
-    <?php if($data): ?>.filter-form {
-        display: none;
-    }
-
-    <?php endif;
-    ?>
-
-    /* ================= Payslip ================= */
-    .payslip {
-        width: 900px;
-        margin: 40px auto;
-        background: #fff;
-        padding: 35px 45px;
-        border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, .08);
-        color: #374151;
-    }
-
-    .header {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 2px solid #d1d5db;
-        padding-bottom: 15px;
-        margin-bottom: 20px;
-    }
-
-    .header h2 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 600;
-        color: #1f2937;
-    }
-
-    .header p {
-        margin: 2px 0;
-        font-size: 13px;
-        color: #4b5563;
-    }
-
-    .section-title {
-        background: #1F284D;
-        color: #fff;
-        padding: 8px;
-        margin-top: 25px;
-        text-align: center;
-        font-weight: 600;
-        border-radius: 4px;
-        font-size: 14px;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-        font-size: 14px;
-        color: #374151;
-    }
-
-    td,
-    th {
-        padding: 10px;
-        border: 1px solid #d1d5db;
-    }
-
-    th {
-        background: #f3f4f6;
-        font-weight: 600;
-        color: #1f2937;
-    }
-
-    .flex {
-        display: flex;
-        gap: 20px;
-        margin-top: 10px;
-    }
-
-    .flex table {
-        width: 50%;
-    }
-
-    .flex td {
-        color: #4b5563;
-    }
-
-    .flex th {
-        background: #e5e7eb;
-        color: #1f2937;
-    }
-
-    .summary td {
-        font-size: 15px;
-        font-weight: 500;
-        color: #111827;
-    }
-
-    .btn-wrap {
-        display: flex;
-        justify-content: space-between;
-        margin: 30px auto;
-        width: 900px;
-    }
-
-    .btn {
-        padding: 10px 20px;
-        border-radius: 6px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-    }
-
-    .btn-back {
-        background: #6b7280;
-        color: #fff;
-    }
-
-    .btn-print {
-        background: #16a34a;
-        color: #fff;
-    }
-
-    .signature {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 40px;
-    }
-
-    .signature div {
-        text-align: center;
-    }
-
-    .signature p {
-        margin-top: 60px;
-        border-top: 1px solid #000;
-        width: 150px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .footer {
-        text-align: center;
-        margin-top: 30px;
-        font-size: 12px;
-        color: #4b5563;
-    }
-
-    @media print {
-        body {
-            background: #fff;
+        body { font-family: 'Segoe UI', Arial, sans-serif; background:#eef1f7; color:#1f2937; margin:0; padding:0; }
+        .container { max-width:920px; margin:0 auto; padding:20px; }
+        .title { text-align:center; font-weight:700; color:#111827; margin:14px 0 4px; font-size:24px; }
+        .sub { text-align:center; color:#6b7280; margin-bottom:16px; }
+        .filter { background:#fff; padding:14px; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.06); display:flex; gap:12px; margin-bottom:18px; }
+        .filter select, .filter input { padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; flex:1; }
+        .filter button { background:#2563eb; color:#fff; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:600; }
+        .actions { display:flex; justify-content:space-between; margin:0 0 16px; }
+        .btn { padding:10px 14px; border-radius:8px; border:none; font-weight:600; cursor:pointer; }
+        .btn-print { background:#10b981; color:#fff; }
+        .btn-back { background:#374151; color:#fff; }
+        .card { background:#fff; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.06); padding:20px; }
+        .header { display:flex; justify-content:space-between; border-bottom:1px solid #e5e7eb; padding-bottom:12px; margin-bottom:16px; }
+        .header .left div { margin:2px 0; }
+        .header .right { text-align:right; }
+        .stats { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:12px; }
+        .stat { background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:14px; text-align:center; }
+        .stat .label { color:#6b7280; font-size:12px; }
+        .stat .value { font-weight:700; font-size:18px; margin-top:6px; color:#111827; }
+        .meta { text-align:center; color:#6b7280; font-size:12px; margin-bottom:10px; }
+        .section { background:#111827; color:#fff; padding:6px 10px; border-radius:6px; font-weight:600; margin:12px 0 8px; }
+        .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+        table { width:100%; border-collapse:collapse; border-radius:8px; overflow:hidden; }
+        th, td { border:1px solid #e5e7eb; padding:8px; text-align:left; font-size:13px; }
+        th { background:#f3f4f6; font-weight:600; }
+        .netpay { background:#0f766e; color:#fff; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center; }
+        .netpay .big { font-size:20px; font-weight:800; }
+        @media print { 
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { font-size:11px; background:#fff; }
+            .filter, .actions, .sub { display:none; } 
+            .container { padding:0; max-width:100%; }
+            .card { box-shadow:none; padding:8px; break-inside: avoid; page-break-inside: avoid; }
+            .title { font-size:18px; margin:8px 0 4px; }
+            .header { padding-bottom:6px; margin-bottom:8px; }
+            .stats { grid-template-columns: repeat(3, 1fr); gap:6px; margin-bottom:8px; }
+            .stat { padding:8px; }
+            .meta { font-size:11px; margin-bottom:6px; }
+            .section { margin:8px 0 6px; padding:5px 8px; }
+            .grid { gap:8px; }
+            table { font-size:12px; }
+            th, td { padding:6px; }
+            .netpay { padding:8px; }
+            .netpay .big { font-size:16px; }
+            /* Print only the payslip area */
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+        @page {
+            size: A4 portrait;
+            margin: 8mm;
         }
-
-        .btn-wrap {
-            display: none;
-        }
-    }
     </style>
 </head>
-
 <body>
+    <div class="container">
+        <h2 class="title">NextPrime Limited</h2>
+        <div class="sub">HRMS & Payroll • Employee Payslip</div>
 
-    <form method="GET" class="filter-form">
-        <div class="form-group">
-            <label>Employee</label>
-            <select name="employee_id" required>
-                <option value="">Select Employee</option>
-                <?php
-            $r=$mysqli->query("SELECT id,name FROM rt_employees");
-            while($e=$r->fetch_assoc()){
-                $s=($employee_id==$e['id'])?'selected':''; 
-                echo "<option value='{$e['id']}' $s>{$e['name']}</option>";
+    <form class="filter" method="GET">
+        <select name="employee_id" required>
+            <option value="">Select Employee</option>
+            <?php
+            $rs = $db->query("SELECT id,name FROM {$tx}employees ORDER BY name ASC");
+            while($row = $rs->fetch_object()){
+                $sel = ($employee_id == intval($row->id)) ? "selected" : "";
+                echo "<option value='{$row->id}' {$sel}>{$row->name}</option>";
             }
             ?>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Salary Month</label>
-            <input type="month" name="salary_month" value="<?=$salary_month?>" required>
-        </div>
-        <button class="btn-view">View Payslip</button>
+        </select>
+        <input type="month" name="salary_month" value="<?= htmlspecialchars($salary_month ?: date('Y-m')) ?>" required>
+        <button type="submit">View Payslip</button>
     </form>
 
-    <?php if($data): ?>
-    <div class="btn-wrap">
-        <button class="btn btn-back" onclick="history.back()">← Back</button>
+    <?php if($calc): ?>
+    <div class="actions">
+        <button class="btn btn-back" data-back data-fallback="<?= $base_url ?>/employeesalary">← Back</button>
         <button class="btn btn-print" onclick="window.print()">Print Payslip</button>
     </div>
 
-    <div class="payslip">
+    <div id="print-area">
+    <div class="card">
+        <div style="text-align:center; margin-bottom:8px;">
+            <img src="<?= $base_url ?>/assets/images/nextprime-logo-pro.svg" alt="Logo" style="width:150px; height:auto;">
+        </div>
         <div class="header">
-            <div>
-                <h2>NextPrime Limited</h2>
-                <p>Dhaka, Mohakhali Dhos</p>
-                <p>+8801632606872</p>
+            <div class="left">
+                <div><b>Payslip</b></div>
+                <div>Salary: <?= date('F Y', strtotime($calc['salary_month'].'-01')) ?></div>
+                <div>Pay Date: <?= date('d M Y') ?></div>
             </div>
-            <div>
-                <center><b>Payslip</b></center><br>
-                Salary: <?=date('F Y',strtotime($data['salary_month'].'-01'))?><br>
-                Pay Date: <?=date('d M Y',strtotime($data['generated_at']))?>
+            <div class="right">
+                <div><b>Employee:</b> <?= htmlspecialchars($emp->name ?? 'N/A') ?></div>
+                <div>ID: <?= intval($employee_id) ?></div>
+                <div><?= htmlspecialchars(($emp->department_name ?? 'N/A')) ?> • <?= htmlspecialchars(($emp->designation_name ?? 'N/A')) ?></div>
             </div>
         </div>
 
-        <div class="section-title">Employee Information</div>
+        <?php 
+            $working_days_used = 30;
+            $late_deduct_days = intval($calc['late_deduct_days']);
+            $overused_days = floatval($calc['lwp_balance_overflow_days']);
+            $late_text = $late_deduct_days . ' ' . ($late_deduct_days == 1 ? 'day' : 'days');
+            $overused_text = (strpos((string)$overused_days, '.') !== false ? rtrim(rtrim(number_format($overused_days,2,'.',''), '0'), '.') : number_format($overused_days,0,'.','')) . ' ' . ($overused_days == 1.0 ? 'day' : 'days');
+            $display_total_deduct_days = $late_deduct_days + $overused_days;
+        ?>
+        <div class="stats">
+            <div class="stat">
+                <div class="label">Gross Salary</div>
+                <div class="value"><?= number_format(round($calc['gross_salary']),0,'.','') ?></div>
+            </div>
+            <div class="stat">
+                <div class="label">Total Deductions</div>
+                <div class="value"><?= number_format(round($calc['tax_deduction'] + $calc['pf_deduction'] + $calc['unpaid_deduction']),0,'.','') ?></div>
+            </div>
+            <div class="stat">
+                <div class="label">Net Pay</div>
+                <div class="value"><?= number_format($calc['net_salary'],0,'.','') ?></div>
+            </div>
+        </div>
+      
+
+        <div class="section">Earnings</div>
         <table>
-            <tr>
-                <td>Employee ID</td>
-                <td><?=$data['employee_id']?></td>
-                <td>Name</td>
-                <td><?=$data['employee_name']?></td>
-            </tr>
-            <tr>
-                <td>Department</td>
-                <td><?=$data['department_name']??'N/A'?></td>
-                <td>Designation</td>
-                <td><?=$data['designation_name']??'N/A'?></td>
-            </tr>
-            <tr>
-                <td>Email</td>
-                <td><?=$data['email']?></td>
-                <td>Phone</td>
-                <td><?=$data['phone']?></td>
-            </tr>
+            <tr><th>Component</th><th>Amount</th></tr>
+            <tr><td>Basic Salary</td><td><?= number_format(round($calc['basic_salary']),0,'.','') ?></td></tr>
+            <tr><td>House Rent Allowance</td><td><?= number_format(round($calc['hra']),0,'.','') ?></td></tr>
+            <tr><td>Medical Allowance</td><td><?= number_format(round($calc['medical_allowance']),0,'.','') ?></td></tr>
+            <tr><td><b>Total Earnings</b></td><td><b><?= number_format(round($calc['gross_salary']),0,'.','') ?></b></td></tr>
         </table>
 
-        <div class="section-title">Employee Salary Calculations</div>
-        <div class="flex">
+        <div class="section">Deductions</div>
+        <div class="grid">
             <table>
-                <tr>
-                    <th>Earnings</th>
-                    <th>Amount</th>
-                </tr>
-                <tr>
-                    <td>Basic Salary</td>
-                    <td><?=$data['basic_salary']?></td>
-                </tr>
-                <tr>
-                    <td>HRA</td>
-                    <td><?=$data['hra']?></td>
-                </tr>
-                <tr>
-                    <td>Medical Allowance</td>
-                    <td><?=$data['medical_allowance']?></td>
-                </tr>
-                <tr>
-                    <td><b>Total Earnings</b></td>
-                    <td><b><?=($data['basic_salary']+$data['hra']+$data['medical_allowance'])?></b></td>
-                </tr>
+                <tr><th>Component</th><th>Amount</th></tr>
+                <tr><td>Tax</td><td><?= number_format(round($calc['tax_deduction']),0,'.','') ?></td></tr>
+                <tr><td>Providend Fund</td><td><?= number_format(round($calc['pf_deduction']),0,'.','') ?></td></tr>
+                <tr><td>Deductions (Leave + Late + Absent)</td><td><?= number_format($calc['unpaid_deduction'],0,'.','') ?></td></tr>
+                <tr><td><b>Total Deductions</b></td><td><b><?= number_format(round($calc['tax_deduction'] + $calc['pf_deduction'] + $calc['unpaid_deduction']),0,'.','') ?></b></td></tr>
             </table>
-
             <table>
-                <tr>
-                    <th>Deductions</th>
-                    <th>Amount</th>
-                </tr>
-                <tr>
-                    <td>Tax</td>
-                    <td><?=$data['tax_deduction']?></td>
-                </tr>
-                <tr>
-                    <td>Provident Fund</td>
-                    <td><?=$data['pf_deduction']?></td>
-                </tr>
-                <tr>
-                    <td>Leave Deduction</td>
-                    <td><?=round($data['leave_deduct'],2)?></td>
-                </tr>
-                <tr>
-                    <td><b>Total Deductions</b></td>
-                    <td><b><?=($data['tax_deduction']+$data['pf_deduction']+round($data['leave_deduct'],2))?></b></td>
-                </tr>
+                <tr><th>Attendance Summary</th><th>Count</th></tr>
+                <tr><td>Working Days Used</td><td><?= $working_days_used ?></td></tr>
+                <tr><td>Late Deduct</td><td><?= $late_text ?></td></tr>
+                <tr><td>Over Leave Deduct</td><td><?= $overused_text ?></td></tr>
+                <tr><td><b>Total Leave Deductions</b></td><td><b><?= $display_total_deduct_days ?> days deduct</b></td></tr>
             </table>
         </div>
 
-        <div class="section-title">Net Pay</div>
-        <table class="summary">
-            <tr>
-                <td>Gross Salary</td>
-                <td><?=$data['gross_salary']?></td>
-            </tr>
-            <tr>
-                <td>Net Pay</td>
-                <td><?=round($data['net_salary']-$data['leave_deduct'],2)?></td>
-            </tr>
-        </table>
-
-        <div class="signature">
-            <div>
-                <p>Employer Signature</p>
-            </div>
-            <div>
-                <p>Employee Signature</p>
-            </div>
+            <div class="section">Net Pay</div>
+        <div class="netpay">
+            <div>Gross: <?= number_format(round($calc['gross_salary']),0,'.','') ?> • Deductions: <?= number_format(round($calc['tax_deduction'] + $calc['pf_deduction'] + $calc['unpaid_deduction']),0,'.','') ?></div>
+            <div class="big">Net: <?= number_format($calc['net_salary'],0,'.','') ?></div>
         </div>
-
-        <div class="footer">This is a system generated payslip</div>
     </div>
+    </div>
+    <?php elseif($employee_id || $salary_month): ?>
+        <div class="card">No payslip data found. Please select a valid employee and month.</div>
     <?php endif; ?>
+    </div>
 </body>
-
 </html>

@@ -38,7 +38,7 @@ public function save($data,$file){
 		if(count($errors)==0){
 			$user=new User();
 		$user->name=$data["name"];
-		$user->password=$data["password"];
+		$user->password=password_hash(trim($data["password"]), PASSWORD_DEFAULT);
 		$user->email=$data["email"];
 		$user->role_id=$data["role_id"];
 		$user->address=$data["address"];
@@ -65,7 +65,14 @@ public function update($data,$file){
 			$user=new User();
 			$user->id=$data["id"];
 		$user->name=$data["name"];
-		$user->password=$data["password"];
+		// keep old password if empty; otherwise hash new one
+		$incoming = trim($data["password"] ?? "");
+		if ($incoming === "") {
+			$existing = User::find($data["id"]);
+			$user->password = $existing ? $existing->password : "";
+		} else {
+			$user->password = password_hash($incoming, PASSWORD_DEFAULT);
+		}
 		$user->email=$data["email"];
 		$user->role_id=$data["role_id"];
 		$user->address=$data["address"];
@@ -94,6 +101,34 @@ public function update($data,$file){
 	}
 	public function show($id){
 		view("users",User::find($id));
+	}
+
+	// Set role by name for a given user id
+	public function setrole($id){
+		global $db, $tx;
+		$roleGuard = strtolower($_SESSION['role_name'] ?? '');
+		if ($roleGuard !== 'admin') {
+			redirect();
+			return;
+		}
+		$role = $_GET['role'] ?? 'Manager';
+		$role = trim($role);
+		if ($role === '') { redirect(); return; }
+		$stmt = $db->prepare("SELECT id FROM {$tx}roles WHERE name = ? LIMIT 1");
+		$stmt->bind_param("s", $role);
+		$stmt->execute();
+		$res = $stmt->get_result();
+		$roleRow = $res->fetch_assoc();
+		$stmt->close();
+		if ($roleRow) {
+			$rid = (int)$roleRow['id'];
+			$upd = $db->prepare("UPDATE {$tx}users SET role_id=? WHERE id=?");
+			$uid = (int)$id;
+			$upd->bind_param("ii", $rid, $uid);
+			$upd->execute();
+			$upd->close();
+		}
+		redirect();
 	}
 }
 ?>

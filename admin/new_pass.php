@@ -5,7 +5,7 @@
 
 <head>
 
-  <base >
+  <base href="<?= $base_url ?>/">
 
   <!-- begin::NextPrime Meta Basic -->
   <meta charset="utf-8">
@@ -102,7 +102,7 @@
         <div class="col-lg-6 align-self-center">
           <div class="p-3 p-sm-5 maxw-450px m-auto">
             <div class="mb-4 text-center">
-              <a href="index.html" aria-label="NextPrime logo">
+              <a href="<?= $base_url ?>/" aria-label="NextPrime logo">
                 <img class="visible-light" src="assets/images/logo-full.svg" alt="NextPrime logo">
                 <img class="visible-dark" src="assets/images/logo-full-white.svg" alt="NextPrime logo">
               </a>
@@ -111,7 +111,7 @@
               <h5 class="mb-1">Welcome to NextPrime</h5>
               <p>Enter your email to reset your password.</p>
             </div>
-            <form action="http://../authentication/login-cover.html">
+            <form action="<?= $base_url ?>/index.php">
               <div class="mb-4">
                 <label class="form-label" for="newPassword">New Password</label>
                 <input type="password" class="form-control" id="newPassword" placeholder="********">

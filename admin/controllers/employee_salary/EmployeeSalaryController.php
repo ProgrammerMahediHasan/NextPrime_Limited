@@ -12,6 +12,34 @@ class EmployeeSalaryController extends Controller{
 		view("employee_salary");
 	}
 
+    public function compute_leave_deduct($data = []){
+        $data = array_merge($_GET, $data);
+        $emp_id = isset($data['emp_id']) ? intval($data['emp_id']) : 0;
+        $basic  = isset($data['basic_salary']) ? floatval($data['basic_salary']) : 0.0;
+        $mode   = isset($data['mode']) ? $data['mode'] : 'perday';
+        $year   = isset($data['year']) ? $data['year'] : date("Y");
+        if ($emp_id <= 0 || $basic <= 0) {
+            echo json_encode(["status"=>false, "message"=>"emp_id and basic_salary required", "leave_deduct"=>"0.00"]);
+            return;
+        }
+        $amount = EmployeeSalary::compute_leave_deduct($emp_id, $basic, $year, $mode);
+        echo json_encode(["status"=>true, "leave_deduct"=>$amount]);
+    }
+
+    public function compute_late_deduct($data = []){
+        $data = array_merge($_GET, $data);
+        $emp_id = isset($data['emp_id']) ? intval($data['emp_id']) : 0;
+        $basic  = isset($data['basic_salary']) ? floatval($data['basic_salary']) : 0.0;
+        $mode   = isset($data['mode']) ? $data['mode'] : 'perday';
+        $year   = isset($data['year']) ? $data['year'] : date("Y");
+        if ($emp_id <= 0 || $basic <= 0) {
+            echo json_encode(["status"=>false, "message"=>"emp_id and basic_salary required", "late_deduct"=>"0.00"]);
+            return;
+        }
+        $amount = EmployeeSalary::compute_late_deduct($emp_id, $basic, $year, $mode);
+        echo json_encode(["status"=>true, "late_deduct"=>$amount]);
+    }
+
 
 
 
@@ -54,12 +82,23 @@ public function save($data,$file){
 		$employeesalary->emp_id=$data["emp_id"];
 		$employeesalary->basic_salary=$data["basic_salary"];
 		$employeesalary->hra=$data["hra"];
-		// $employeesalary->deduct_leave=$data["deduct_leave"];
 		$employeesalary->medical_allowance=$data["medical_allowance"];
 		$employeesalary->tax_deduction=$data["tax_deduction"];
 		$employeesalary->pf_deduction=$data["pf_deduction"];
-		$employeesalary->gross_salary=$data["gross_salary"];
-		$employeesalary->net_salary=$data["net_salary"];
+		// Compute gross and net with auto deductions
+		$empId = intval($data["emp_id"]);
+		$basic = floatval($data["basic_salary"]);
+		$hra   = floatval($data["hra"]);
+		$med   = floatval($data["medical_allowance"]);
+		$tax   = floatval($data["tax_deduction"]);
+		$pf    = floatval($data["pf_deduction"]);
+		$year  = isset($data["deduct_year"]) ? $data["deduct_year"] : date("Y");
+		$gross = round($basic + $hra + $med);
+		$leave = intval(EmployeeSalary::compute_leave_deduct($empId, $basic, $year, "perday"));
+		$late  = intval(EmployeeSalary::compute_late_deduct($empId, $basic, $year, "perday"));
+		$net   = round($gross - ($tax + $pf + $leave + $late));
+		$employeesalary->gross_salary=$gross;
+		$employeesalary->net_salary=$net;
 
 			$employeesalary->save();
 		redirect();
@@ -82,7 +121,6 @@ public function update($data,$file){
 		$employeesalary->emp_id=$data["emp_id"];
 		$employeesalary->basic_salary=$data["basic_salary"];
 		$employeesalary->hra=$data["hra"];
-		// $employeesalary->deduct_leave=$data["deduct_leave"];
 		$employeesalary->medical_allowance=$data["medical_allowance"];
 		$employeesalary->tax_deduction=$data["tax_deduction"];
 		$employeesalary->pf_deduction=$data["pf_deduction"];

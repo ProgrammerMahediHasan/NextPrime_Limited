@@ -16,11 +16,13 @@ class Form{
     }
     
    
-   public static function select($config){
+    public static function select($config){
       global $db,$tx; 
      $config["value"]=isset($config["value"])?$config["value"]:""; 
      $id=isset($config["value_column"])?$config["value_column"]:"id";  
      $name=isset($config["display_column"])?$config["display_column"]:"name";  
+     $where=isset($config["where"])?$config["where"]:"";
+     $order=isset($config["order_by"])?$config["order_by"]:"";
   
      $ucname=ucfirst($config["name"]);
      //echo "select $id,$name from {$tx}{$config["table"]}";
@@ -29,7 +31,15 @@ class Form{
      $html.="<label class='col-sm-2 col-form-label'>{$config["label"]}</label>";
      $html.="<div class='col-sm-10'>"; 
      $html.="<select name='{$config["name"]}' id='{$config["name"]}' class='form-select' style='width:100%'>";
-     $result=$db->query("select $id,$name from {$tx}{$config["table"]}");
+     if (isset($config["placeholder_option"]) && $config["placeholder_option"]!=="") {
+       $phVal = isset($config["placeholder_value"]) ? $config["placeholder_value"] : "";
+       $selPh = ($config["value"]==="" || $config["value"]===null) ? "selected" : "";
+       $html.="<option value='{$phVal}' {$selPh}>{$config["placeholder_option"]}</option>";
+     }
+     $sql = "select $id,$name from {$tx}{$config["table"]}";
+     if($where){ $sql .= " where {$where}"; }
+     if($order){ $sql .= " order by {$order}"; }
+     $result=$db->query($sql);
      while(list($id,$name)=$result->fetch_row()){
       
        if($id==$config["value"]){
@@ -77,11 +87,21 @@ class Form{
 
         $html.="<div class='col-sm-10'>";
 
-         //select tag
+       //select tag
         if(isset($config["table"])){
          
           $html.="<select id='{$config["name"]}' name='{$config["name"]}' class='form-select' style='width:100%'>";
-          $result=$db->query("select $id,$name from {$tx}{$config["table"]}");
+          if (isset($config["placeholder_option"]) && $config["placeholder_option"]!=="") {
+            $phVal = isset($config["placeholder_value"]) ? $config["placeholder_value"] : "";
+            $selPh = ($config["value"]==="" || $config["value"]===null) ? "selected" : "";
+            $html.="<option value='{$phVal}' {$selPh}>{$config["placeholder_option"]}</option>";
+          }
+         $where = isset($config["where"]) ? $config["where"] : "";
+         $order = isset($config["order_by"]) ? $config["order_by"] : "";
+         $sql = "select $id,$name from {$tx}{$config["table"]}";
+         if($where){ $sql .= " where {$where}"; }
+         if($order){ $sql .= " order by {$order}"; }
+         $result=$db->query($sql);
           while(list($id,$name)=$result->fetch_row()){
           
             if($id==$config["value"]){

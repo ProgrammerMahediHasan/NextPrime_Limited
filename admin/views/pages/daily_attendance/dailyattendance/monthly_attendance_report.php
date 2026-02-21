@@ -1,14 +1,5 @@
 <?php
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = "";
-$dbname = "hrm";
-
-$db = new mysqli($host, $user, $pass, $dbname);
-if($db->connect_error){
-    die("Connection failed: " . $db->connect_error);
-}
+global $db, $tx;
 
 // Initialize variables
 $month = $_POST['month'] ?? '';
@@ -21,7 +12,7 @@ if($month && $year){
     $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
 
     // Fetch employees
-    $employeesResult = $db->query("SELECT id, name FROM rt_employees ORDER BY name ASC");
+    $employeesResult = $db->query("SELECT id, name FROM {$tx}employees ORDER BY name ASC");
     while($e = $employeesResult->fetch_assoc()){
         $employees[$e['id']] = $e['name'];
     }
@@ -29,7 +20,7 @@ if($month && $year){
     // Fetch attendance data
     $attendanceResult = $db->query("
         SELECT emp_id, att_date, status, late_minutes, overtime_minutes
-        FROM rt_daily_attendance
+        FROM {$tx}daily_attendance
         WHERE MONTH(att_date) = $month AND YEAR(att_date) = $year
     ");
     while($row = $attendanceResult->fetch_assoc()){
@@ -37,8 +28,6 @@ if($month && $year){
         $attendance[$row['emp_id']][$day] = $row;
     }
 }
-
-$db->close();
 ?>
 
 <!DOCTYPE html>
@@ -131,15 +120,16 @@ monthYearInput.addEventListener('change', function(){
                 $status = $cell['status'] ?? 'Absent';
                 $late = $cell['late_minutes'] ?? 0;
                 $ot = $cell['overtime_minutes'] ?? 0;
+                $statusLc = strtolower($status);
 
-                if(strtolower($status)=='present') $totalPresent++;
-                if(strtolower($status)=='absent') $totalAbsent++;
-                if(strtolower($status)=='leave') $totalLeave++;
+                if($statusLc==='absent') $totalAbsent++;
+                elseif($statusLc==='leave') $totalLeave++;
+                else $totalPresent++;
                 $totalLate += $late;
                 $totalOvertime += $ot;
 
-                $statusClass = strtolower($status);
-                $displayStatus = strtoupper(substr($status,0,1));
+                $statusClass = ($statusLc==='absent') ? 'absent' : 'present';
+                $displayStatus = ($statusLc==='absent') ? 'A' : 'P';
                 echo "<td class='$statusClass'>$displayStatus</td>";
             endfor; ?>
             <td class="summary" rowspan="3"><?= $totalPresent ?></td>

@@ -21,14 +21,16 @@ echo Form::input([
     "name" => "description"
 ]);
 
-// ✅ Status dropdown (raw HTML)
-echo "<div class='form-group'>";
-echo "<label>Status</label>";
-echo "<select name='status' class='form-control' required>
-        <option value=''>Select Status</option>
-        <option value='Active'>Active</option>
-        <option value='Inactive'>Inactive</option>
-      </select>";
+// Status dropdown (aligned UI)
+echo "<div class='form-group row'>";
+echo "<label for='status' class='col-sm-2 col-form-label'>Status</label>";
+echo "<div class='col-sm-10'>";
+echo "<select name='status' id='status' class='form-select' style='width:100%' required>";
+echo "<option value='' selected>Select Status</option>";
+echo "<option value='Active'>Active</option>";
+echo "<option value='Inactive'>Inactive</option>";
+echo "</select>";
+echo "</div>";
 echo "</div>";
 
 // Submit button

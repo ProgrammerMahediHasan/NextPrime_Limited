@@ -69,6 +69,14 @@ body{
     gap:10px;
 }
 
+.btn-uniform{
+    min-width:140px;
+    text-align:center;
+    font-size:14px;
+    font-weight:600;
+    display:inline-block;
+}
+
 .btn-save{
     background:#2563eb;
     color:#fff;
@@ -107,7 +115,9 @@ body{
             "table" => "department",
             "value_column" => "id",
             "display_column" => "name",
-            "value" => isset($data['dept_id']) ? $data['dept_id'] : ""
+            "value" => isset($data['dept_id']) ? $data['dept_id'] : "",
+            "placeholder_option" => "Select Department",
+            "placeholder_value" => ""
         ]);
         echo "</div>";
 
@@ -135,13 +145,13 @@ body{
             "name" => "create",
             "value" => "Save",
             "type" => "submit",
-            "class" => "btn-save"
+            "class" => "btn-save btn-uniform"
         ]);
 
         echo Html::link([
             "route" => "designation",
             "text" => "Back",
-            "class" => "btn-back"
+            "class" => "btn-back btn-uniform"
         ]);
         echo "</div>";
 

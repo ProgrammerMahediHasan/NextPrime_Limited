@@ -1,11 +1,18 @@
 <?php session_start();
-  require_once("configs/config.php");
-  require_once("helpers/helper.php");
-  require_once("libraries/library.php");
-  require_once("models/model.php");
-  require_once("controllers/controller.php");
+  require_once(__DIR__."/configs/config.php");
+  require_once(__DIR__."/helpers/helper.php");
+  require_once(__DIR__."/libraries/library.php");
+  require_once(__DIR__."/models/model.php");
+  require_once(__DIR__."/controllers/controller.php");
   
-  if(!isset($_SESSION["uid"])) header("location:$base_url");
+  if(!isset($_SESSION["uid"])) {
+    $req = $_SERVER['REQUEST_URI'] ?? '';
+    if ($req && stripos($req, '/NextPrime_Limited/admin') !== false) {
+      $_SESSION['return_to'] = $req;
+    }
+    header("location:$base_url");
+    exit;
+  }
   $uid=$_SESSION["uid"];
   
 
@@ -46,13 +53,14 @@
   <!-- begin::NextPrime Website Page Title -->
   <title> NextPrime Software </title>
   <!-- end::NextPrime Website Page Title -->
+  <base href="<?= $base_url?>/">
 
   <!-- begin::NextPrime Mobile Specific -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- end::NextPrime Mobile Specific -->
 
   <!-- begin::NextPrime Favicon Tags -->
-  <link rel="icon" type="image/png" href="<?= $base_url?>\assets\images\HRMS_Icon.png">
+  <link rel="icon" type="image/png" href="<?= $base_url?>/assets/images/HRMS_Icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="<?= $base_url?>/assets/images/apple-touch-icon.png">
   <!-- end::NextPrime Favicon Tags -->
 
@@ -91,6 +99,19 @@
 	</script>
   <!-- end::NextPrime Googletagmanager -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  window.NP_BASE="<?= $base_url?>";
+  window.goBack=function(f){
+    var r=document.referrer||"";
+    var same=false;
+    try{var u=new URL(r);same=u.origin===window.location.origin;}catch(e){same=false}
+    if(same&&r){location.href=r}else if(f){location.href=f}else{location.href=window.NP_BASE+"/home";}
+  };
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-back]");
+    if(t){e.preventDefault();var f=t.getAttribute("data-fallback")||"";window.goBack(f);}
+  });
+</script>
 </head>
 
 <body>
@@ -249,10 +270,9 @@
           <div class="dropdown text-end ms-sm-3 ms-2 ms-lg-4">
             <a href="#" class="d-flex align-items-center py-2" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="true">
               <div class="text-end me-2 d-none d-lg-inline-block">
-                <div class="fw-bold text-dark">Mahedi Hasan</div>
-                <small class="text-body d-block lh-sm">
-                  <i class="fi fi-rr-angle-down text-3xs me-1"></i> Admin
-                </small>
+                <div class="fw-bold text-dark"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
+                <small class="text-body d-block lh-sm"><?= htmlspecialchars($_SESSION['email'] ?? '') ?></small>
+                <small class="text-body d-block lh-sm"><i class="fi fi-rr-angle-down text-3xs me-1"></i> <?= htmlspecialchars($_SESSION['role_name'] ?? 'User') ?></small>
               </div>
               <div class="avatar avatar-sm rounded-circle avatar-status-success">
                 <img src="<?= $base_url?>/assets/images/Mahedi.png" alt="Mahedi.png">
@@ -264,8 +284,9 @@
                 <img src="<?= $base_url?>/assets/images/Mahedi.png" alt="Mahedi.png">
                 </div>
                 <div class="ms-2">
-                  <div class="fw-bold text-dark">Mahedi Hasan</div>
-                  <small class="text-body d-block lh-sm">mahedihasanabir8@gmail.com</small>
+                  <div class="fw-bold text-dark"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
+                  <small class="text-body d-block lh-sm"><?= htmlspecialchars($_SESSION['email'] ?? '') ?></small>
+                  <small class="text-body d-block lh-sm"><?= htmlspecialchars($_SESSION['role_name'] ?? '') ?></small>
                 </div>
               </li>
               <li>
@@ -291,11 +312,11 @@
                   <i class="fi fi-rr-settings scale-1x"></i> Account Settings
                 </a>
               </li>
-              <li>
+              <!-- <li>
                 <a class="dropdown-item d-flex align-items-center gap-2" href="pages/pricing.html">
                   <i class="fi fi-rr-usd-circle scale-1x"></i> Upgrade Plan
                 </a>
-              </li>
+              </li> -->
               <li>
                 <div class="dropdown-divider my-1"></div>
               </li>
@@ -311,7 +332,7 @@
     </header>
     <!-- end::NextPrime Page Header -->
 
-    <div class="modal fade" id="searchResultsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="searchResultsModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header py-1 px-3">
@@ -368,9 +389,8 @@
     <!-- begin::NextPrime Sidebar Menu -->
     <aside class="app-menubar" id="appMenubar">
       <div class="app-navbar-brand">
-        <h3>NextPrime</h3>
-        <a class="navbar-brand-logo" >
-          <img src="<?= $base_url?>/assets\images\HRMS_Icon.png" width='40px' alt="NextPrime Admin Dashboard Logo">
+        <a class="navbar-brand-logo" href="<?= $base_url?>/home" aria-label="Go to Dashboard">
+          <img src="<?= $base_url?>/assets/images/nextprime-logo-pro.svg" width="120" alt="NextPrime Logo">
         </a>
 
           
@@ -692,7 +712,7 @@ style="font-weight: bold; font-size: 1.2rem; color: white; display: block; text-
 
 
     
-    <span class="menu-label">REPORTS & ANALYTICS</span>
+    <span class="menu-label">REPORTS</span>
     </a>
     <ul class="menu-inner">
 

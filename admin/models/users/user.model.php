@@ -87,7 +87,6 @@ class User extends Model implements JsonSerializable{
 	public function __toString(){
 		return "		Id:$this->id<br> 
 		name:$this->name<br> 
-		Password:$this->password<br> 
 		Email:$this->email<br> 
 		Role Id:$this->role_id<br> 
 		Address:$this->address<br> 
@@ -198,7 +197,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     </style>";
 
     // Add New User Button
-    $colspan = $action ? 8 : 7;
+    $colspan = $action ? 7 : 6;
     $html .= "<tr>
                 <th colspan='{$colspan}' class='text-center'>" . Html::link([
                     "class" => "btn btn-success",
@@ -212,9 +211,8 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
 
     // Table Head
     $html .= "<thead><tr>
-                <th>Id</th>
+                <th>SL No</th>
                 <th>name</th>
-                <th>Password</th>
                 <th>Email</th>
                 <th>Role Id</th>
                 <th>Address</th>
@@ -223,6 +221,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
     $html .= "</tr></thead><tbody>";
 
     // Table Rows
+    $sl = $top + 1;
     while ($user = $result->fetch_object()) {
         $action_buttons = "";
         if ($action) {
@@ -239,15 +238,15 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
         }
 
         $html .= "<tr>
-                    <td>$user->id</td>
+                    <td>$sl</td>
                     <td>$user->name</td>
-                    <td>$user->password</td>
                     <td>$user->email</td>
                     <td>$user->role_id</td>
                     <td>$user->address</td>
                     <td>$user->status</td>
                     $action_buttons
                   </tr>";
+        $sl++;
     }
 
     $html .= "</tbody></table></div>";
@@ -269,7 +268,7 @@ static function html_table($page = 1, $perpage = 10, $criteria = "", $action = t
 		$html.="<tr><th colspan=\"2\">User Show</th></tr>";
 		$html.="<tr><th>Id</th><td>$user->id</td></tr>";
 		$html.="<tr><th>name</th><td>$user->name</td></tr>";
-		$html.="<tr><th>Password</th><td>$user->password</td></tr>";
+		// password not shown
 		$html.="<tr><th>Email</th><td>$user->email</td></tr>";
 		$html.="<tr><th>Role Id</th><td>$user->role_id</td></tr>";
 		$html.="<tr><th>Address</th><td>$user->address</td></tr>";

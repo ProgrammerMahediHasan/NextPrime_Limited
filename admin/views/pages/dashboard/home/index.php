@@ -1,3 +1,15 @@
+ <?php
+ global $db, $tx;
+ $today = date('Y-m-d');
+ function np_count($db, $sql){ $r = $db->query($sql); return $r ? (int)($r->fetch_row()[0] ?? 0) : 0; }
+ function np_sum($db, $sql){ $r = $db->query($sql); return $r ? (float)($r->fetch_row()[0] ?? 0) : 0.0; }
+ $totalEmployees = np_count($db, "SELECT COUNT(*) FROM {$tx}employees WHERE status='Active'");
+ $presentToday = np_count($db, "SELECT COUNT(*) FROM {$tx}daily_attendance WHERE att_date='$today' AND status='Present'");
+ $absentToday = np_count($db, "SELECT COUNT(*) FROM {$tx}daily_attendance WHERE att_date='$today' AND status='Absent'");
+ $dayOffToday = np_count($db, "SELECT COUNT(*) FROM {$tx}daily_attendance WHERE att_date='$today' AND status='Day Off'");
+ $overtimeMinutes = np_sum($db, "SELECT COALESCE(SUM(overtime_minutes),0) FROM {$tx}daily_attendance WHERE att_date='$today'");
+ $netPayrollTotal = np_sum($db, "SELECT COALESCE(SUM(net_salary),0) FROM {$tx}employee_salary");
+ ?>
  <div class="app-page-head d-flex flex-wrap gap-3 align-items-center justify-content-between"> 
 
          <div class="clearfix">
@@ -24,13 +36,8 @@
                     </div>
 
 
-                    <h3>1206</h3>
-                    <h6 class="mb-0">Total Employee</h6>
-                    <small class="fw-medium">
-                      <span class="text-success">
-                        <i class="fi fi-rr-arrow-small-up scale-3x"></i> +5%
-                      </span> Last Month
-                    </small>
+                    <h3><?= number_format($totalEmployees) ?></h3>
+                    <h6 class="mb-0">Total Employees</h6>
                   </div>
                 </div>
               </div>
@@ -38,15 +45,10 @@
                 <div class="card bg-info bg-opacity-05 shadow-none border-0">
                   <div class="card-body">
                     <div class="avatar bg-info shadow-info rounded-circle text-white mb-3">
-                      <i class="fi fi-sr-user-add"></i>
+                      <i class="fi fi-rr-user-check"></i>
                     </div>
-                    <h3>218</h3>
-                    <h6 class="mb-0">New Employee</h6>
-                    <small class="fw-medium">
-                      <span class="text-success">
-                        <i class="fi fi-rr-arrow-small-up scale-3x"></i> +3.2%
-                      </span> Last Month
-                    </small>
+                    <h3><?= number_format($presentToday) ?></h3>
+                    <h6 class="mb-0">Present Today</h6>
                   </div>
                 </div>
               </div>
@@ -54,15 +56,11 @@
                 <div class="card bg-secondary bg-opacity-05 shadow-none border-0">
                   <div class="card-body">
                     <div class="avatar bg-warning shadow-warning rounded-circle text-white mb-3">
-                      <i class="fi fi-sr-delete-user"></i>
+                      <i class="fi fi-rr-user-time"></i>
                     </div>
-                    <h3>126</h3>
-                    <h6 class="mb-0">On Leave</h6>
-                    <small class="fw-medium">
-                      <span class="text-danger">
-                        <i class="fi fi-rr-arrow-small-down scale-3x"></i> -2%
-                      </span> Last Month
-                    </small>
+                    <h3><?= number_format($absentToday) ?></h3>
+                    <h6 class="mb-0">Absent Today</h6>
+                    <small class="fw-medium d-block">Day Off <?= number_format($dayOffToday) ?></small>
                   </div>
                 </div>
               </div>
@@ -70,15 +68,10 @@
                 <div class="card bg-success bg-opacity-05 shadow-none border-0">
                   <div class="card-body">
                     <div class="avatar bg-success shadow-success rounded-circle text-white mb-3">
-                      <i class="fi fi-sr-shopping-bag"></i>
+                      <i class="fi fi-rr-usd-circle"></i>
                     </div>
-                    <h3>776</h3>
-                    <h6 class="mb-0">Job Applicants</h6>
-                    <small class="fw-medium">
-                      <span class="text-success">
-                        <i class="fi fi-rr-arrow-small-down scale-3x"></i> +8%
-                      </span> Last Month
-                    </small>
+                    <h3><?= number_format($netPayrollTotal, 0) ?></h3>
+                    <h6 class="mb-0">Net Payroll</h6>
                   </div>
                 </div>
               </div>
@@ -88,13 +81,8 @@
                     <div class="avatar bg-danger shadow-danger rounded-circle text-white mb-3">
                       <i class="fi fi-sr-clock-three"></i>
                     </div>
-                    <h3>1017</h3>
-                    <h6 class="mb-0">Over Time</h6>
-                    <small class="fw-medium">
-                      <span class="text-danger">
-                        <i class="fi fi-rr-arrow-small-down scale-3x"></i> -8%
-                      </span> Last Month
-                    </small>
+                    <h3><?= number_format($overtimeMinutes) ?></h3>
+                    <h6 class="mb-0">Overtime Minutes</h6>
                   </div>
                 </div>
               </div>

@@ -46,9 +46,8 @@ class LeaveRequest extends Model implements JsonSerializable {
 
         $last_id = $db->insert_id;
 
-        if(strtolower($this->status) == 'approved'){
-            self::updateLeaveAssignUsedDays($this->emp_id, $this->leave_id);
-        }
+        $year = intval(date("Y", strtotime($this->start_date)));
+        self::updateLeaveAssignUsedDays($this->emp_id, $this->leave_id, $year);
 
         return $last_id;
     }
@@ -78,9 +77,8 @@ class LeaveRequest extends Model implements JsonSerializable {
             applied_on='$applied_on'
             WHERE id='$id'");
 
-        if(strtolower($this->status) == 'approved'){
-            self::updateLeaveAssignUsedDays($this->emp_id, $this->leave_id);
-        }
+        $year = intval(date("Y", strtotime($this->start_date)));
+        self::updateLeaveAssignUsedDays($this->emp_id, $this->leave_id, $year);
     }
 
     public static function delete($id){
@@ -128,7 +126,7 @@ class LeaveRequest extends Model implements JsonSerializable {
 
     static function html_status_dropdown($name="status", $selected=null){
         $options = ["Pending"=>"Pending", "Approved"=>"Approved", "Rejected"=>"Rejected"];
-        $html = "<select id='$name' name='$name' class='form-control'>";
+        $html = "<select id='$name' name='$name' class='form-select' style='width:100%'>";
         $html .= "<option value=''>Select Status</option>";
         foreach($options as $value => $label){
             $sel = ($selected == $value) ? "selected" : "";
@@ -159,11 +157,12 @@ class LeaveRequest extends Model implements JsonSerializable {
                 lr.total_days,
                 lr.reason,
                 lr.status,
-                lr.approver_id,
+                u.name AS approver_name,
                 lr.applied_on
             FROM {$tx}leave_request lr
             LEFT JOIN {$tx}employees e ON e.id = lr.emp_id
             LEFT JOIN {$tx}leave_types lt ON lt.id = lr.leave_id
+            LEFT JOIN {$tx}users u ON u.id = lr.approver_id
             $criteria
             LIMIT $top,$perpage");
 
@@ -177,7 +176,9 @@ class LeaveRequest extends Model implements JsonSerializable {
             .btn-danger{background:#ef4444;color:#fff;border:none;padding:6px 10px;cursor:pointer;}
         </style>";
 
-        $html .= "<div style='margin-bottom:10px;'><button onclick=\"location.href='{$base_url}/leaverequest/create'\" class='btn btn-success'>+ Add Leave Request</button></div>";
+        $html .= "<div style='margin-bottom:10px; display:flex; gap:8px; align-items:center;'>
+            <button onclick=\"location.href='{$base_url}/leaverequest/create'\" class='btn btn-success'>+ Add Leave Request</button>
+        </div>";
         $html .= "<div class='table-responsive'><table class='table'>";
         $html .= "<tr>
                     <th>Employee</th><th>Leave Type</th><th>Start</th><th>End</th><th>Total Days</th><th>Reason</th><th>Status</th><th>Approver</th>";
@@ -189,11 +190,17 @@ class LeaveRequest extends Model implements JsonSerializable {
             if($action){
                 $actions = "<td>
                     <div class='btn-group'>
-                        <button class='btn-primary' onclick=\"location.href='{$base_url}/leaverequest/edit/$lr->id'\"><i class='fas fa-edit'></i></button>
-                        <button class='btn-danger' onclick=\"if(confirm('Are you sure to delete this Leave Request?')) location.href='{$base_url}/leaverequest/delete/$lr->id'\"><i class='fas fa-trash-alt'></i></button>
+                        <button class='btn-primary' title='View' onclick=\"location.href='{$base_url}/leaverequest/show/$lr->id'\"><i class='fas fa-eye'></i></button>
+                        <button class='btn-primary' title='Edit' onclick=\"location.href='{$base_url}/leaverequest/edit/$lr->id'\"><i class='fas fa-edit'></i></button>
+                        <button class='btn-success' title='Approve' onclick=\"location.href='{$base_url}/leaverequest/approve/$lr->id'\"><i class='fas fa-check'></i></button>
+                        <button class='btn-warning' title='Reject' onclick=\"location.href='{$base_url}/leaverequest/reject/$lr->id'\"><i class='fas fa-times'></i></button>
+                        <button class='btn-danger' title='Delete' onclick=\"if(confirm('Are you sure to delete this Leave Request?')) location.href='{$base_url}/leaverequest/delete/$lr->id'\"><i class='fas fa-trash-alt'></i></button>
                     </div>
                 </td>";
             }
+            $statusBadge = "<span style='padding:4px 8px;border-radius:12px;color:#fff;font-size:12px;"
+                .(strtolower($lr->status)=='approved'?"background:#16a34a;":(strtolower($lr->status)=='rejected'?"background:#dc2626;":"background:#2563eb;"))
+                ."'>".$lr->status."</span>";
             $html .= "<tr>
                 <td>$lr->employee_name</td>
                 <td>$lr->leave_type_name</td>
@@ -201,8 +208,8 @@ class LeaveRequest extends Model implements JsonSerializable {
                 <td>$lr->end_date</td>
                 <td>$lr->total_days</td>
                 <td>$lr->reason</td>
-                <td>$lr->status</td>
-                <td>$lr->approver_id</td>
+                <td>$statusBadge</td>
+                <td>".($lr->approver_name ?: "-")."</td>
                 $actions
             </tr>";
         }
@@ -211,15 +218,71 @@ class LeaveRequest extends Model implements JsonSerializable {
         return $html;
     }
 
-    // Update used_days in leave_assign
-    public static function updateLeaveAssignUsedDays($emp_id, $leave_id){
+    // Update used_days in leave_assign for a specific year
+    public static function updateLeaveAssignUsedDays($emp_id, $leave_id, $year = null){
         global $db,$tx;
-        $result = $db->query("SELECT SUM(total_days) as total_used 
+        $emp_id = intval($emp_id);
+        $leave_id = intval($leave_id);
+        if ($year === null) {
+            $yrq = $db->query("SELECT year FROM {$tx}leave_assign WHERE emp_id={$emp_id} AND leave_type_id={$leave_id} ORDER BY id DESC LIMIT 1");
+            $yrrow = $yrq ? $yrq->fetch_object() : null;
+            $year = intval($yrrow->year ?? date("Y"));
+        } else {
+            $year = intval($year);
+        }
+        $result = $db->query("
+            SELECT SUM(total_days) as total_used 
             FROM {$tx}leave_request 
-            WHERE emp_id='$emp_id' AND leave_id='$leave_id' AND status='Approved'");
+            WHERE emp_id={$emp_id} 
+              AND leave_id={$leave_id} 
+              AND status='Approved'
+              AND YEAR(start_date) = {$year}
+        ");
         $row = $result->fetch_object();
         $total_used = $row->total_used ?? 0;
-        $db->query("UPDATE {$tx}leave_assign SET used_days='$total_used' WHERE emp_id='$emp_id' AND leave_type_id='$leave_id'");
+        $db->query("
+            UPDATE {$tx}leave_assign 
+            SET used_days={$total_used} 
+            WHERE emp_id={$emp_id} 
+              AND leave_type_id={$leave_id}
+              AND year={$year}
+        ");
+    }
+    
+    public static function html_row_details($id){
+        global $db,$tx;
+        $id = intval($id);
+        $result = $db->query("
+            SELECT lr.*, e.name AS employee_name, lt.name AS leave_type_name, u.name AS approver_name
+            FROM {$tx}leave_request lr
+            LEFT JOIN {$tx}employees e ON e.id = lr.emp_id
+            LEFT JOIN {$tx}leave_types lt ON lt.id = lr.leave_id
+            LEFT JOIN {$tx}users u ON u.id = lr.approver_id
+            WHERE lr.id = {$id}
+            LIMIT 1
+        ");
+        if(!$result || $result->num_rows == 0){
+            return "<div style='text-align:center;color:red;'>No data found</div>";
+        }
+        $lr = $result->fetch_object();
+        $html = "<style>
+            .details-table { max-width: 700px; margin: 15px auto; border-collapse: collapse; font-family: 'Poppins', sans-serif; }
+            .details-table th, .details-table td { padding: 10px 12px; border: 1px solid #e2e8f0; text-align: left; }
+            .details-table th { background: #1f3d79; color: #fff; font-weight: 600; width: 30%; }
+            .details-table tr:nth-child(even) { background: #f9fafb; }
+        </style>";
+        $html .= "<table class='details-table'>";
+        $html .= "<tr><th>Employee</th><td>".htmlspecialchars($lr->employee_name ?: "-")."</td></tr>";
+        $html .= "<tr><th>Leave Type</th><td>".htmlspecialchars($lr->leave_type_name ?: "-")."</td></tr>";
+        $html .= "<tr><th>Start Date</th><td>".htmlspecialchars($lr->start_date ?: "-")."</td></tr>";
+        $html .= "<tr><th>End Date</th><td>".htmlspecialchars($lr->end_date ?: "-")."</td></tr>";
+        $html .= "<tr><th>Total Days</th><td>".htmlspecialchars($lr->total_days ?: "-")."</td></tr>";
+        $html .= "<tr><th>Reason</th><td>".htmlspecialchars($lr->reason ?: "-")."</td></tr>";
+        $html .= "<tr><th>Status</th><td>".htmlspecialchars($lr->status ?: "-")."</td></tr>";
+        $html .= "<tr><th>Approver</th><td>".htmlspecialchars($lr->approver_name ?: "-")."</td></tr>";
+        $html .= "<tr><th>Applied On</th><td>".htmlspecialchars($lr->applied_on ?: "-")."</td></tr>";
+        $html .= "</table>";
+        return $html;
     }
 }
 ?>

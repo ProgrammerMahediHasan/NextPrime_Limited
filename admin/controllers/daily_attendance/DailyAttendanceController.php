@@ -3,6 +3,26 @@ class DailyAttendanceController extends Controller
 {
     public function __construct() {}
 
+    private function isHoliday($date){
+        $list = [
+            "2026-02-21","2026-03-26","2026-04-14","2026-05-01","2026-08-15","2026-12-16","2026-12-25"
+        ];
+        return in_array($date, $list, true);
+    }
+
+    private function computeRule($att_date, $in_time){
+        date_default_timezone_set('Asia/Dhaka');
+        $scheduled = "09:00:00";
+        $grace     = "09:10:00";
+        $absentAt  = "10:00:00";
+        $isec = strtotime($in_time);
+        $ssec = strtotime($scheduled);
+        $gsec = strtotime($grace);
+        $asec = strtotime($absentAt);
+        if($isec <= $gsec){ return ["Present", 0]; }
+        if($isec <= $asec){ return ["Present", max(0, intdiv(($isec - $ssec), 60))]; }
+        return ["Absent", 0];
+    }
     // Show attendance index
     public function index() { view("daily_attendance"); }
 
@@ -25,11 +45,12 @@ public function save() {
     date_default_timezone_set('Asia/Dhaka');
 
     $att_date = $_POST['att_date'];
-    $current_time = date('H:i:s'); // current system time
+    $current_time = date('H:i:s');
 
     // Attendance rules
     $scheduled_time = "09:00:00";  // Office start time
-    $absent_time = "10:00:00";     // Absent cutoff
+    $grace_time     = "09:10:00";  // Grace ends at 9:10
+    $absent_time    = "10:00:00";  // Late allowed up to 10:00; after 10:00 -> Absent
 
     // Determine day type
     $day_name = date('l', strtotime($att_date)); // Monday, Tuesday, etc.
@@ -37,29 +58,13 @@ public function save() {
     // Debug check (optional)
     // echo "$att_date => $day_name"; exit;
 
-    if ($day_name == "Friday" || $day_name == "Saturday") {
-        $day_type = "Weekend";
-    } else {
-        $day_type = "Working";
-    }
+        if ($this->isHoliday($att_date)) { $day_type = "Holiday"; }
+        else if ($day_name == "Friday") { $day_type = "Weekend"; }
+        else { $day_type = "Working"; }
 
     foreach($_POST['attendance'] as $emp_id => $row) {
         if(isset($row['p'])) {
-            $in_seconds = strtotime($current_time);
-            $scheduled_seconds = strtotime($scheduled_time);
-            $absent_seconds = strtotime($absent_time);
-
-            // Determine status
-            if($in_seconds < $scheduled_seconds){
-                $status = "Present";
-                $late_minutes = 0;
-            } elseif($in_seconds <= $absent_seconds){
-                $status = "Late";
-                $late_minutes = ($in_seconds - $scheduled_seconds)/60;
-            } else {
-                $status = "Absent";
-                $late_minutes = 0;
-            }
+            list($status,$late_minutes) = $this->computeRule($att_date, $current_time);
 
             // Check if record exists
             $check = $db->query("SELECT id FROM {$tx}daily_attendance 
@@ -95,7 +100,7 @@ public function save() {
     $att_date = $_POST['att_date'];
     $current_time = date('H:i:s'); // OUT time
     $scheduled_in = "09:00:00";    // Scheduled in time
-    $scheduled_out = "17:00:00";   // Scheduled out time
+    $scheduled_out = "17:30:00";   // Scheduled out time
 
     foreach($_POST['attendance'] as $emp_id => $row) {
         if(isset($row['p'])) {
@@ -109,16 +114,16 @@ public function save() {
                 // Calculate total work minutes
                 $total_minutes = max(0,(strtotime($current_time) - strtotime($in_time))/60);
 
-                // Calculate late minutes
-                $late_minutes = max(0,(strtotime($in_time) - strtotime($scheduled_in))/60);
+                list($statusNow,$late_minutes) = $this->computeRule($att_date, $in_time);
 
                 // Calculate overtime minutes
                 $overtime_minutes = max(0,(strtotime($current_time) - strtotime($scheduled_out))/60);
 
-                // Update attendance
+                // Update attendance (also align status from rule)
                 $db->query("UPDATE {$tx}daily_attendance
                             SET out_time='$current_time',
                                 total_work_minutes='$total_minutes',
+                                status='$statusNow',
                                 late_minutes='$late_minutes',
                                 overtime_minutes='$overtime_minutes'
                             WHERE emp_id='$emp_id' AND att_date='$att_date'");
@@ -127,7 +132,8 @@ public function save() {
     }
 
     echo "<div class='alert alert-success text-center mt-3'>OUT time, total work, late & overtime saved!</div>";
-    echo '<a href="http://localhost/PHP_Converted/admin/DailyAttendance/">back</a>';
+    global $base_url;
+    echo '<a href="' . $base_url . '/DailyAttendance/">back</a>';
 
 }
 

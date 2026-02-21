@@ -190,8 +190,15 @@ class EmployeeSalary extends Model implements JsonSerializable{
     $total_pages = ceil($total_rows / $perpage);
     $top = ($page - 1) * $perpage;
 
-    // Fetch salary records
-    $query = "SELECT * FROM {$tx}employee_salary $criteria ORDER BY id DESC LIMIT $top, $perpage";
+    // Fetch salary records with employee name
+    $query = "
+        SELECT es.*, e.name AS emp_name
+        FROM {$tx}employee_salary es
+        LEFT JOIN {$tx}employees e ON e.id = es.emp_id
+        $criteria
+        ORDER BY es.id DESC
+        LIMIT $top, $perpage
+    ";
     $result = $db->query($query);
 
     // Start table container
@@ -207,15 +214,37 @@ class EmployeeSalary extends Model implements JsonSerializable{
     $html .= "</div>";
 
     // Start table
-    $html .= "<table class='table table-bordered table-striped table-hover w-100'>";
+    $html .= "<table class='table table-bordered table-hover w-100 salary-index-table'>";
 
     // Table header styling
     $html .= "<style>
-        .table thead th {
-            background-color: #0d3b66; /* Deep blue */
-            color: #d1d5db; /* Light ash */
+        .salary-index-table {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        .salary-index-table thead th {
+            background: linear-gradient(90deg, #0d3b66, #1d4ed8);
+            color: #ffffff;
             text-align: center;
-            font-weight: 600;
+            font-weight: 700;
+            padding: 12px;
+            border-bottom: 0;
+        }
+        .salary-index-table tbody td {
+            background-color: #f8fafc;
+            border-color: #e5e7eb;
+            vertical-align: middle;
+        }
+        .salary-index-table tbody tr:nth-child(odd) td {
+            background-color: #eef2ff;
+        }
+        .salary-index-table tbody tr:hover td {
+            background-color: #dbeafe;
+        }
+        .salary-index-table td.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
         .btn-group .btn {
             margin-right: 5px;
@@ -275,13 +304,15 @@ class EmployeeSalary extends Model implements JsonSerializable{
     // Table headers
     $html .= "<thead>
                 <tr>
-                    <th>Emp Id</th>
+                    <th>Employee</th>
                     <th>Basic Salary</th>
                     <th>House Rent</th>
                     <th>Medical Allowance</th>
+                    <th>Gross Salary</th>
                     <th>Tax Deduction</th>
                     <th>PF Deduction</th>
-                    <th>Gross Salary</th>
+                    <th>Leave Deduct</th>
+                    <th>Late Deduct</th>
                     <th>Net Salary</th>";
     if($action) $html .= "<th>Action</th>";
     $html .= "</tr>
@@ -291,23 +322,29 @@ class EmployeeSalary extends Model implements JsonSerializable{
     while($salary = $result->fetch_object()){
         $action_buttons = "";
         if($action){
+            $currentMonth = date("Y-m");
             $action_buttons = "<td style='white-space: nowrap;'>
                                 <div class='btn-group'>
                                     <button class='btn-primary' onclick=\"location.href='{$base_url}/employeesalary/edit/$salary->id'\"><i class='fas fa-edit'></i></button>
                                     <button class='btn-danger' onclick=\"if(confirm('Are you sure?')) location.href='{$base_url}/employeesalary/confirm/$salary->id'\"><i class='fas fa-trash-alt'></i></button>
+
                                 </div>
                               </td>";
         }
 
+        $deduct_amount = self::compute_leave_deduct($salary->emp_id, $salary->basic_salary);
+        $late_deduct_amount = self::compute_late_deduct($salary->emp_id, $salary->basic_salary);
         $html .= "<tr>
-                    <td>$salary->emp_id</td>
-                    <td>$salary->basic_salary</td>
-                    <td>$salary->hra</td>
-                    <td>$salary->medical_allowance</td>
-                    <td>$salary->tax_deduction</td>
-                    <td>$salary->pf_deduction</td>
-                    <td>$salary->gross_salary</td>
-                    <td>$salary->net_salary</td>
+                    <td>$salary->emp_name</td>
+                    <td class='num'>".number_format(round($salary->basic_salary),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->hra),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->medical_allowance),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->gross_salary),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->tax_deduction),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->pf_deduction),0,'.','')."</td>
+                    <td class='num'>".number_format(round(floatval($deduct_amount)),0,'.','')."</td>
+                    <td class='num'>".number_format(round(floatval($late_deduct_amount)),0,'.','')."</td>
+                    <td class='num'>".number_format(round($salary->net_salary),0,'.','')."</td>
                     $action_buttons
                   </tr>";
     }
@@ -331,7 +368,7 @@ class EmployeeSalary extends Model implements JsonSerializable{
 	
 	static function html_row_details($id){
 		global $db,$tx,$base_url;
-		$result =$db->query("select id,emp_id,basic_salary,hra,leave_deduct,medical_allowance,tax_deduction,pf_deduction,gross_salary,net_salary from {$tx}employee_salary where id={$id}");
+		$result =$db->query("select id,emp_id,basic_salary,hra,medical_allowance,tax_deduction,pf_deduction,gross_salary,net_salary from {$tx}employee_salary where id={$id}");
 		$employeesalary=$result->fetch_object();
 		$html="<table class='table'>";
 		$html.="<tr><th colspan=\"2\">EmployeeSalary Show</th></tr>";
@@ -339,6 +376,10 @@ class EmployeeSalary extends Model implements JsonSerializable{
 		$html.="<tr><th>Emp Id</th><td>$employeesalary->emp_id</td></tr>";
 		$html.="<tr><th>Basic Salary</th><td>$employeesalary->basic_salary</td></tr>";
 		$html.="<tr><th>Hra</th><td>$employeesalary->hra</td></tr>";
+        $deduct_amount = self::compute_leave_deduct($employeesalary->emp_id, $employeesalary->basic_salary);
+        $late_deduct_amount = self::compute_late_deduct($employeesalary->emp_id, $employeesalary->basic_salary);
+		$html.="<tr><th>Leave Deduct</th><td>$deduct_amount</td></tr>";
+        $html.="<tr><th>Late Deduct</th><td>$late_deduct_amount</td></tr>";
 		$html.="<tr><th>Medical Allowance</th><td>$employeesalary->medical_allowance</td></tr>";
 		$html.="<tr><th>Tax Deduction</th><td>$employeesalary->tax_deduction</td></tr>";
 		$html.="<tr><th>Pf Deduction</th><td>$employeesalary->pf_deduction</td></tr>";
@@ -348,5 +389,75 @@ class EmployeeSalary extends Model implements JsonSerializable{
 		$html.="</table>";
 		return $html;
 	}
+
+    static function compute_leave_deduct($emp_id, $basic_salary, $year = null, $mode = 'perday'){
+        global $db, $tx;
+        $emp_id = intval($emp_id);
+        $year = $year ?: date("Y");
+        if ($emp_id <= 0) return number_format(0,2,'.','');
+        $rq1 = $db->query("
+            SELECT COALESCE(SUM(lr.total_days),0) AS salary_days
+            FROM {$tx}leave_request lr
+            LEFT JOIN {$tx}leave_types lt ON lt.id = lr.leave_id
+            WHERE lr.emp_id = {$emp_id}
+              AND YEAR(lr.start_date) = '{$year}'
+              AND lr.status = 'Approved'
+              AND lt.deduct_apply = 1
+        ");
+        $salary_days = 0.0;
+        if ($rq1) {
+            $r1 = $rq1->fetch_object();
+            $salary_days = floatval($r1->salary_days);
+        }
+        $overflow_days = 0.0;
+        $rq2 = $db->query("
+            SELECT la.allow_days, la.used_days
+            FROM {$tx}leave_assign la
+            LEFT JOIN {$tx}leave_types lt ON lt.id = la.leave_type_id
+            WHERE la.emp_id = {$emp_id}
+              AND la.year = '{$year}'
+              AND lt.deduct_apply = 0
+        ");
+        if ($rq2) {
+            while($ra = $rq2->fetch_object()){
+                $overflow_days += max(0.0, floatval($ra->used_days) - floatval($ra->allow_days));
+            }
+        }
+        $total_days = max(0.0, $salary_days + $overflow_days);
+        $rate = 0.0;
+        if ($mode === 'full') {
+            $rate = (floatval($basic_salary) > 0) ? floatval($basic_salary) : 0.0;
+        } else {
+            $rate = (floatval($basic_salary) > 0) ? round(floatval($basic_salary)/30.0) : 0.0;
+        }
+        return number_format(round($total_days * $rate), 0, '.', '');
+    }
+
+    static function compute_late_deduct($emp_id, $basic_salary, $year = null, $mode = 'perday'){
+        global $db, $tx;
+        $emp_id = intval($emp_id);
+        $year = $year ?: date("Y");
+        if ($emp_id <= 0) return number_format(0,2,'.','');
+        $rq = $db->query("
+            SELECT COUNT(*) AS late_count
+            FROM {$tx}daily_attendance
+            WHERE emp_id = {$emp_id}
+              AND YEAR(att_date) = '{$year}'
+              AND late_minutes > 0
+        ");
+        $late_count = 0;
+        if ($rq) {
+            $r = $rq->fetch_row();
+            $late_count = intval($r[0] ?? 0);
+        }
+        $late_days = floor($late_count / 3);
+        $rate = 0.0;
+        if ($mode === 'full') {
+            $rate = (floatval($basic_salary) > 0) ? floatval($basic_salary) : 0.0;
+        } else {
+            $rate = (floatval($basic_salary) > 0) ? round(floatval($basic_salary)/30.0) : 0.0;
+        }
+        return number_format(round($late_days * $rate), 0, '.', '');
+    }
 }
 ?>

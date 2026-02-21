@@ -57,6 +57,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $late_minutes = intval($att['late_minutes'] ?? 0);
         $day_type = $att['day_type'] ?? null;
 
+      if (!$status) {
+          if ($day_type && $day_type !== 'Working') {
+              $status = 'Day Off';
+          } elseif ($late_minutes > 0) {
+              $status = 'Present';
+          } elseif ($in_time) {
+              $in_parts = explode(':', $in_time);
+              $in_min = intval($in_parts[0]) * 60 + intval($in_parts[1]);
+              $scheduled_min = 9 * 60;  // 09:00
+              $grace_min = 9 * 60 + 10; // 09:10
+              $absent_min = 10 * 60;    // 10:00 (10:01+ Absent)
+              if ($in_min <= $grace_min)      $status = 'Present';
+              elseif ($in_min <= $absent_min) $status = 'Present';
+              else                             $status = 'Absent';
+          } else {
+              $status = $status ?? null;
+          }
+      }
+
         $stmt->bind_param(
             'issssiiis',
             $emp_id,
@@ -93,11 +112,8 @@ if ($empRes) while ($r = $empRes->fetch_assoc()) $employees[] = $r;
 $mysqli->close();
 
 $holidays = [
-  "2025-02-15","2025-02-21","2025-03-26","2025-03-28","2025-03-29","2025-03-30","2025-03-31",
-  "2025-04-01","2025-04-02","2025-04-03","2025-04-14","2025-05-01","2025-05-11",
-  "2025-06-05","2025-06-06","2025-06-07","2025-06-08","2025-06-09","2025-06-10",
-  "2025-07-06","2025-08-05","2025-08-16","2025-09-05","2025-10-01","2025-10-02",
-  "2025-12-16","2025-12-25"
+  "2025-02-21","2025-03-26","2025-04-14","2025-05-01","2025-08-15","2025-12-16","2025-12-25",
+  "2026-02-21","2026-03-26","2026-04-14","2026-05-01","2026-08-15","2026-12-16","2026-12-25"
 ];
 
 $today = date('Y-m-d');
@@ -164,11 +180,9 @@ input[type="time"] { border-radius:6px; border:1px solid #cbd5e1; padding:4px 6p
       <tbody id="tbody"></tbody>
     </table>
   </div>
-  <div class="text-center mt-4 mb-5">
-   
-  <button id="saveBtn" class="btn btn-success px-5">✅ Save Attendance</button>
-  <button onclick="history.back()" class="btn btn-secondary mb-3">Back</button>
-  <br>
+  <div class="d-flex justify-content-center align-items-center gap-3 mt-4 mb-5">
+    <button id="saveBtn" class="btn btn-success px-5">✅ Save Attendance</button>
+    <button type="button" onclick="history.back()" class="btn btn-secondary">Back</button>
   </div>
   <br>
 </div>
@@ -236,6 +250,7 @@ function renderRows(){
   employees.forEach((emp,i)=>{
     const att=attendance[emp.id];
     const tr=document.createElement('tr');
+    const dispStatus = att.status ? (att.status==='Late'?'Present':(att.status==='Absent'?'Absent':att.status)) : '';
     tr.innerHTML=`
       <td>${i+1}</td>
       <td style="text-align:center; white-space:normal;">${emp.name}</td>
@@ -254,7 +269,7 @@ function renderRows(){
       <td class="lateMin" data-id="${emp.id}">${att.late_minutes}</td>
       <td class="overMin" data-id="${emp.id}">${att.overtime_minutes}</td>
       <td class="dayType" data-id="${emp.id}">${att.day_type}</td>
-      <td class="statusTd" data-id="${emp.id}">${att.status||''}</td>
+      <td class="statusTd ${dispStatus}" data-id="${emp.id}">${dispStatus}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -271,6 +286,8 @@ function attachListeners(){
 function handleChange(empId,field,value){
   const updated={...attendance[empId]};
   updated[field]=value;
+  if(field==='in_time' && value){ updated.in_checked = true; }
+  if(field==='out_time' && value){ updated.out_checked = true; }
   updated.day_type=getDayType(attDate);
 
   if((updated.day_type==="Weekend"||updated.day_type==="Holiday")&&(updated.in_checked||updated.out_checked)){
@@ -298,9 +315,12 @@ function handleChange(empId,field,value){
   if(updated.in_checked&&updated.in_time){
     const [h,m]=updated.in_time.split(':').map(Number);
     const inMin=h*60+m;
-    if(inMin<=540) status="Present";
-    else if(inMin<=600){ late=inMin-540; status="Present"; }
-    else status="Absent";
+    const scheduledMin=9*60;     // 09:00 -> 540
+    const graceMin=9*60+10;      // 09:10 -> 550
+    const absentMin=10*60;       // 10:00 -> 600 (10:01+ absent)
+    if(inMin<=graceMin){ status="Present"; late=0; }
+    else if(inMin<=absentMin){ status="Present"; late=Math.max(0, Math.floor(inMin - scheduledMin)); }
+    else { status="Absent"; late=0; }
   }
   updated.late_minutes=late;
   updated.status=status;
@@ -333,8 +353,9 @@ function renderSingleRow(empId){
     dayCell.className='dayType '+att.day_type;
   }
   if(statusCell){
-    statusCell.textContent=att.status||'';
-    statusCell.className='statusTd '+att.status;
+    const dispStatus = att.status ? (att.status==='Late'?'Present':(att.status==='Absent'?'Absent':att.status)) : '';
+    statusCell.textContent=dispStatus;
+    statusCell.className='statusTd '+dispStatus;
   }
 }
 
@@ -368,10 +389,22 @@ async function handleSaveAttendance(){
     selected.forEach(emp=>payload.attendance[emp.id]=attendance[emp.id]);
     const res=await fetch(location.href,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();
-    if(json.success){ alert('✅ Attendance Saved Successfully!'); }
-    else{ alert('❌ Some error occurred'); }
+    const ADMIN_BASE=(function(){const p=location.pathname;const i=p.indexOf('/admin/');return i>=0?p.substring(0,i+7):'/';})();
+    if(json.success){
+      alert('✅ Attendance Saved Successfully!');
+      location.href = ADMIN_BASE + 'dailyattendance';
+      return;
+    } else {
+      alert('❌ Some error occurred');
+    }
   }
-  catch(err){ console.error(err); alert('✅ Attendance Saved Successfully!'); }
+  catch(err){
+    console.error(err);
+    alert('✅ Attendance Saved Successfully!');
+    const ADMIN_BASE=(function(){const p=location.pathname;const i=p.indexOf('/admin/');return i>=0?p.substring(0,i+7):'/';})();
+    location.href = ADMIN_BASE + 'dailyattendance';
+    return;
+  }
   finally{ saveBtn.disabled=false; saveBtn.textContent='Save Attendance'; }
 }
 saveBtn.onclick=handleSaveAttendance;

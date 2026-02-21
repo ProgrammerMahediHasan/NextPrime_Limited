@@ -1,6 +1,6 @@
 <?php
 echo Page::body_open();
-echo Html::link(["class"=>"btn btn-success", "route"=>"leaverequest", "text"=>"Back Page"]);
+// Top Back Page button removed as requested
 echo Page::context_open();
 
 echo Form::open(["route"=>"leaverequest/save"]);
@@ -56,17 +56,36 @@ echo Form::input([
 // =======================
 // Status Dropdown from Model
 // =======================
-$selected_status = $_POST['status'] ?? "Pending"; // default Pending
-echo "<label>Status</label>";
+$selected_status = $_POST['status'] ?? "Pending";
+echo "<div class='form-group row'>";
+echo "<label for='status' class='col-sm-2 col-form-label'>Status</label>";
+echo "<div class='col-sm-10'>";
 echo LeaveRequest::html_status_dropdown("status", $selected_status);
+echo "</div>";
+echo "</div>";
 
-// Approver ID
-echo Form::input([
-    "label" => "Approver",
-    "type" => "text",
-    "name" => "approver_id",
-    "placeholder" => "Enter Approver Id"
-]);
+global $db, $tx;
+echo "<div class='form-group row'>";
+echo "<label for='approver_id' class='col-sm-2 col-form-label'>Approver</label>";
+echo "<div class='col-sm-10'>";
+$sql = "
+    SELECT u.id, CONCAT(u.name,' (', COALESCE(r.name,'-'), ')') AS display
+    FROM {$tx}users u
+    LEFT JOIN {$tx}roles r ON r.id = u.role_id
+    WHERE LOWER(r.name) IN ('manager','hr','admin')
+    ORDER BY u.name ASC
+";
+$res = $db->query($sql);
+echo "<select id='approver_id' name='approver_id' class='form-select' style='width:100%'>";
+echo "<option value='' selected>Select Approver</option>";
+while($row = $res->fetch_assoc()){
+    $id = intval($row["id"]);
+    $text = $row["display"];
+    echo "<option value='{$id}'>{$text}</option>";
+}
+echo "</select>";
+echo "</div>";
+echo "</div>";
 
 // Applied On (default today)
 echo Form::input([
@@ -77,12 +96,14 @@ echo Form::input([
 ]);
 
 // Submit
-echo Form::input([
-    "name" => "create",
-    "class" => "btn btn-primary offset-2",
-    "value" => "Save Leave Request",
-    "type" => "submit"
+echo "<div style='display:flex;justify-content:center;gap:10px;margin-top:12px;'>";
+echo Html::link([
+    "class" => "btn btn-dark",
+    "route" => "leaverequest",
+    "text"  => "Back"
 ]);
+echo "<button type='submit' name='create' class='btn btn-primary px-5'>Send Leave Request</button>";
+echo "</div>";
 
 echo Form::close();
 echo Page::context_close();
